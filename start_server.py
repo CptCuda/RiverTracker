@@ -14,7 +14,7 @@ try:
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print(f"Serving at http://localhost:{PORT}")
         print("Opening browser...")
-        webbrowser.open(f"http://localhost:{PORT}/skagit-flood-tracker-v4.html")
+        webbrowser.open(f"http://localhost:{PORT}/")
         httpd.serve_forever()
 except OSError as e:
     if e.errno == 10048:
