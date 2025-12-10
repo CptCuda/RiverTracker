@@ -1893,10 +1893,10 @@
                 const isCrest = f === crest;
                 const isPast = f.datetime < now;
 
-                // Find actual observation for this time
+                // Find actual observation for this time (strict window)
                 const actual = state.loggedObs.find(o => {
                     const diff = Math.abs(new Date(o.datetime).getTime() - f.datetime.getTime());
-                    return diff < 3 * 60 * 60 * 1000;
+                    return diff < 45 * 60 * 1000; // Match within 45 mins to avoid false positives
                 });
 
                 const variance = actual ? (actual.level - f.stage) : null;
