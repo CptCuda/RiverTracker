@@ -979,7 +979,7 @@
             </div>
             <div class="api-badge loading" id="alertsStatus">
                 <span class="dot"></span>
-                <span>Alerts: Loading...</span>
+                <span>NWS Alerts: Loading...</span>
             </div>
             <button class="refresh-btn" onclick="refreshAll()" id="refreshBtn">🔄 Refresh All</button>
         </div>
@@ -1548,33 +1548,39 @@
                 const container = document.getElementById('alertsContainer');
                 container.innerHTML = '';
 
-                const floodAlerts = (data.features || []).filter(f =>
-                    f.properties.event?.toLowerCase().includes('flood')
-                );
+                const alerts = data.features || [];
 
-                if (floodAlerts.length > 0) {
-                    floodAlerts.forEach(alert => {
+                if (alerts.length > 0) {
+                    // Add Header
+                    const header = document.createElement('h3');
+                    header.style.margin = '0 0 12px 0';
+                    header.style.color = 'var(--color-warning)';
+                    header.style.fontSize = '1.1rem';
+                    header.innerHTML = '⚠️ NWS Active Alerts';
+                    container.appendChild(header);
+
+                    alerts.forEach(alert => {
                         const props = alert.properties;
                         const div = document.createElement('div');
                         div.className = `alert-item ${props.severity === 'Severe' ? '' : 'warning'}`;
                         div.innerHTML = `
-                            <h4>⚠️ ${props.event}</h4>
+                            <h4>${props.event}</h4>
                             <p>${props.headline || props.description?.substring(0, 200) + '...'}</p>
                         `;
                         container.appendChild(div);
                     });
 
                     badge.className = 'api-badge error';
-                    badge.querySelector('span:last-child').textContent = `Alerts: ${floodAlerts.length} active`;
+                    badge.querySelector('span:last-child').textContent = `NWS Alerts: ${alerts.length} active`;
                 } else {
                     badge.className = 'api-badge success';
-                    badge.querySelector('span:last-child').textContent = 'Alerts: None';
+                    badge.querySelector('span:last-child').textContent = 'NWS Alerts: None';
                 }
 
             } catch (err) {
                 console.error('Alerts fetch error:', err);
                 badge.className = 'api-badge error';
-                badge.querySelector('span:last-child').textContent = 'Alerts: Error';
+                badge.querySelector('span:last-child').textContent = 'NWS Alerts: Error';
             }
         }
 
