@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skagit River Flood Monitor - Mount Vernon</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e14;
+            --bg-card: #111820;
+            --bg-elevated: #1a2332;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #484f58;
+            --color-safe: #2ea043;
+            --color-action: #d29922;
+            --color-warning: #f85149;
+            --color-major: #ff3333;
+            --color-record: #bc00ff;
+            --accent-blue: #58a6ff;
+            --accent-cyan: #39c5cf;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(57, 197, 207, 0.06) 0%, transparent 50%),
+                linear-gradient(180deg, var(--bg-dark) 0%, #0d1117 100%);
+            z-index: -1;
+        }
+
+        .rain-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .rain-drop {
+            position: absolute;
+            width: 2px;
+            background: linear-gradient(to bottom, transparent, rgba(88, 166, 255, 0.3));
+            animation: rain-fall linear infinite;
+        }
+
+        @keyframes rain-fall {
+            0% {
+                transform: translateY(-100px);
+            }
+
+            100% {
+                transform: translateY(100vh);
+            }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+            padding: 24px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), var(--accent-cyan));
+            animation: header-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes header-glow {
+
+            0%,
+            100% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .location-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(88, 166, 255, 0.1);
+            border: 1px solid rgba(88, 166, 255, 0.3);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* API Status Bar */
+        .api-status {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .api-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .api-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .api-badge.success .dot {
+            background: var(--color-safe);
+        }
+
+        .api-badge.loading .dot {
+            background: var(--color-action);
+            animation: pulse-dot 1s infinite;
+        }
+
+        .api-badge.error .dot {
+            background: var(--color-warning);
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: var(--bg-dark);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            margin-left: auto;
+        }
+
+        .refresh-btn:hover {
+            opacity: 0.9;
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Status Banner */
+        .status-banner {
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .status-banner.safe {
+            background: linear-gradient(135deg, rgba(46, 160, 67, 0.15) 0%, rgba(46, 160, 67, 0.05) 100%);
+            border-color: rgba(46, 160, 67, 0.3);
+            color: var(--color-safe);
+        }
+
+        .status-banner.action {
+            background: linear-gradient(135deg, rgba(210, 153, 34, 0.2) 0%, rgba(210, 153, 34, 0.05) 100%);
+            border-color: rgba(210, 153, 34, 0.4);
+            color: var(--color-action);
+        }
+
+        .status-banner.warning {
+            background: linear-gradient(135deg, rgba(248, 81, 73, 0.2) 0%, rgba(248, 81, 73, 0.05) 100%);
+            border-color: rgba(248, 81, 73, 0.4);
+            color: var(--color-warning);
+        }
+
+        .status-banner.major {
+            background: linear-gradient(135deg, rgba(255, 51, 51, 0.25) 0%, rgba(255, 51, 51, 0.1) 100%);
+            border-color: rgba(255, 51, 51, 0.5);
+            color: var(--color-major);
+            animation: pulse-critical 1s ease-in-out infinite;
+        }
+
+        .status-banner.record {
+            background: linear-gradient(135deg, rgba(188, 0, 255, 0.25) 0%, rgba(188, 0, 255, 0.1) 100%);
+            border-color: rgba(188, 0, 255, 0.5);
+            color: var(--color-record);
+            animation: pulse-record 0.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse-critical {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(255, 51, 51, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 40px rgba(255, 51, 51, 0.4);
+            }
+        }
+
+        @keyframes pulse-record {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(188, 0, 255, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(188, 0, 255, 0.5);
+            }
+        }
+
+        .status-icon {
+            font-size: 28px;
+        }
+
+        .status-text {
+            flex: 1;
+        }
+
+        .status-text h2 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .status-text p {
+            font-size: 13px;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), transparent);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .stat-value span {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .stat-change {
+            font-size: 11px;
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-change.rising {
+            color: var(--color-warning);
+        }
+
+        .stat-change.falling {
+            color: var(--color-safe);
+        }
+
+        .stat-change.stable {
+            color: var(--text-secondary);
+        }
+
+        /* Section styling */
+        .section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+        }
+
+        /* Gauge Visual */
+        .gauge-container {
+            position: relative;
+            height: 50px;
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .gauge-zones {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+        }
+
+        .gauge-zone {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+        }
+
+        .gauge-zone.safe {
+            background: rgba(46, 160, 67, 0.3);
+            width: 56%;
+        }
+
+        .gauge-zone.action {
+            background: rgba(210, 153, 34, 0.4);
+            width: 8%;
+        }
+
+        .gauge-zone.warning {
+            background: rgba(248, 129, 73, 0.4);
+            width: 6%;
+        }
+
+        .gauge-zone.major {
+            background: rgba(248, 81, 73, 0.5);
+            width: 6%;
+        }
+
+        .gauge-zone.record {
+            background: rgba(188, 0, 255, 0.5);
+            width: 24%;
+        }
+
+        .gauge-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--text-primary);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            transition: left 0.5s ease;
+            z-index: 2;
+        }
+
+        .gauge-marker::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: -5px;
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-top: 7px solid var(--text-primary);
+        }
+
+        .gauge-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Forecast Crest */
+        .forecast-crest {
+            background: linear-gradient(135deg, rgba(188, 0, 255, 0.2) 0%, rgba(255, 51, 51, 0.15) 100%);
+            border: 2px solid rgba(188, 0, 255, 0.4);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .forecast-crest h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--color-record);
+            margin-bottom: 8px;
+        }
+
+        .crest-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--color-record);
+            line-height: 1;
+        }
+
+        .crest-value span {
+            font-size: 18px;
+        }
+
+        .crest-time {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .crest-comparison {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--color-warning);
+        }
+
+        /* Tables */
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .table-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: var(--bg-elevated);
+            border-radius: 3px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 3px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .data-table th {
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-table td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .data-table tr.crest {
+            background: rgba(188, 0, 255, 0.15);
+        }
+
+        .data-table tr.current {
+            background: rgba(57, 197, 207, 0.1);
+        }
+
+        .stage-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
+        }
+
+        .stage-badge.safe {
+            background: rgba(46, 160, 67, 0.2);
+            color: var(--color-safe);
+        }
+
+        .stage-badge.action {
+            background: rgba(210, 153, 34, 0.2);
+            color: var(--color-action);
+        }
+
+        .stage-badge.warning {
+            background: rgba(248, 129, 73, 0.2);
+            color: #f88149;
+        }
+
+        .stage-badge.major {
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--color-warning);
+        }
+
+        .stage-badge.record {
+            background: rgba(188, 0, 255, 0.2);
+            color: var(--color-record);
+        }
+
+        /* Variance */
+        .variance {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .variance.over {
+            color: var(--color-warning);
+            background: rgba(248, 81, 73, 0.15);
+        }
+
+        .variance.under {
+            color: var(--color-safe);
+            background: rgba(46, 160, 67, 0.15);
+        }
+
+        .variance.close {
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: var(--bg-dark);
+            border-color: transparent;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Accuracy Stats */
+        .accuracy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .accuracy-card {
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .accuracy-card .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .accuracy-card .label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Log Input */
+        .input-section {
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .input-section h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .input-group {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .input-group input {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .btn {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: var(--bg-dark);
+            border: none;
+        }
+
+        .btn-danger {
+            border-color: rgba(248, 81, 73, 0.4);
+            color: var(--color-warning);
+        }
+
+        /* Resources */
+        .resources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .resource-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+
+        .resource-card:hover {
+            background: var(--bg-elevated);
+            border-color: rgba(88, 166, 255, 0.3);
+        }
+
+        .resource-icon {
+            font-size: 20px;
+        }
+
+        .resource-content h3 {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .resource-content p {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        /* Alerts */
+        .alerts-container {
+            margin-bottom: 24px;
+        }
+
+        .alert-item {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+        }
+
+        .alert-item.warning {
+            background: rgba(210, 153, 34, 0.1);
+            border-color: rgba(210, 153, 34, 0.3);
+        }
+
+        .alert-item h4 {
+            font-size: 13px;
+            margin-bottom: 4px;
+            color: var(--color-warning);
+        }
+
+        .alert-item p {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        footer a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .update-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-elevated);
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            font-size: 11px;
+        }
+
+        .safety-banner {
+            background: rgba(248, 81, 73, 0.15);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            color: var(--color-warning);
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        /* Chart */
+        .chart-container {
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        #forecastChart {
+            width: 100%;
+            height: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-gradient"></div>
+    <div class="rain-container" id="rain"></div>
+
+    <div class="container">
+        <header>
+
+            <div class="header-controls" style="margin-bottom: 12px;">
+                <select id="locationSelect" onchange="switchLocation(this.value)"
+                    style="padding: 8px; border-radius: 6px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color);">
+                    <option value="MVEW1">Mount Vernon (MVEW1)</option>
+                    <option value="CONW1">Concrete (CONW1)</option>
+                </select>
+            </div>
+            <p class="location-title" id="locationTitle"
+                style="color: var(--accent-cyan); font-weight: 500; margin-bottom: 4px;">📍 Mount Vernon, WA - USGS
+                12200500</p>
+            <h1>🌊 <span id="gaugeTitle">Skagit River</span> Flood Monitor</h1>
+            <p class="subtitle">Live data from USGS & NOAA with forecast tracking</p>
+        </header>
+
+        <div class="api-status">
+            <div class="api-badge loading" id="usgsStatus">
+                <span class="dot"></span>
+                <span>USGS: Loading...</span>
+            </div>
+            <div class="api-badge loading" id="nwpsStatus">
+                <span class="dot"></span>
+                <span>NWPS: Loading...</span>
+            </div>
+            <div class="api-badge loading" id="alertsStatus">
+                <span class="dot"></span>
+                <span>Alerts: Loading...</span>
+            </div>
+            <button class="refresh-btn" onclick="refreshAll()" id="refreshBtn">🔄 Refresh All</button>
+        </div>
+
+        <div class="alerts-container" id="alertsContainer"></div>
+
+        <div class="status-banner safe" id="statusBanner">
+            <div class="status-icon" id="statusIcon">⏳</div>
+            <div class="status-text">
+                <h2 id="statusTitle">Loading Data...</h2>
+                <p id="statusDescription">Fetching from USGS and NOAA APIs</p>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Current Level</div>
+                <div class="stat-value" id="currentLevel">--.- <span>ft</span></div>
+                <div class="stat-change" id="levelTrend"><span>Loading...</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Flow Rate</div>
+                <div class="stat-value" id="flowRate">--,--- <span>cfs</span></div>
+                <div class="stat-change" id="flowTrend"><span>--</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">To Flood Stage</div>
+                <div class="stat-value" id="belowFlood">--.- <span>ft</span></div>
+                <div class="stat-change" id="floodPct"><span>--</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Predicted Crest</div>
+                <div class="stat-value" id="crestPreview">--.- <span>ft</span></div>
+                <div class="stat-change" id="crestTime"><span>--</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Forecast Accuracy</div>
+                <div class="stat-value" id="accuracyPct">--<span>%</span></div>
+                <div class="stat-change" id="accuracyDesc"><span>--</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Observations</div>
+                <div class="stat-value" id="obsCount">0</div>
+                <div class="stat-change stable"><span>logged</span></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">📊 Visual Gauge</h2>
+            <div class="gauge-container">
+                <div class="gauge-zones">
+                    <div class="gauge-zone safe">Normal</div>
+                    <div class="gauge-zone action">Action</div>
+                    <div class="gauge-zone warning">Mod</div>
+                    <div class="gauge-zone major">Major</div>
+                    <div class="gauge-zone record">Record</div>
+                </div>
+                <div class="gauge-marker" id="gaugeMarker" style="left: 0%"></div>
+            </div>
+            <div class="gauge-labels">
+                <span>0</span>
+                <span>28 (Flood)</span>
+                <span>32</span>
+                <span>35</span>
+                <span>38.86 (Rec)</span>
+                <span>50 ft</span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('forecast')">📈 Forecast</button>
+            <button class="tab-btn" onclick="showTab('observed')">📊 Recent Observations</button>
+            <button class="tab-btn" onclick="showTab('comparison')">🎯 Forecast vs Actual</button>
+            <button class="tab-btn" onclick="showTab('log')">📝 Log Data</button>
+        </div>
+
+        <!-- FORECAST TAB -->
+        <div class="tab-content active" id="tab-forecast">
+            <div class="section">
+                <div class="forecast-crest" id="crestBox">
+                    <h3>⚠️ Predicted Maximum Crest</h3>
+                    <div class="crest-value" id="crestValue">--.- <span>ft</span></div>
+                    <p class="crest-time" id="crestDateTime">Loading forecast...</p>
+                    <div class="crest-comparison" id="crestComparison">2021 Record: 38.86 ft</div>
+                </div>
+
+                <h2 class="section-title">NWPS Forecast Timeline</h2>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Forecast</th>
+                                <th>Actual</th>
+                                <th>Variance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTable">
+                            <tr>
+                                <td colspan="5" style="text-align:center;color:var(--text-muted);">Loading forecast...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- OBSERVED TAB -->
+        <div class="tab-content" id="tab-observed">
+            <div class="section">
+                <h2 class="section-title">📊 Recent USGS Observations (Last 24h)</h2>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Stage</th>
+                                <th>Discharge</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="observedTable">
+                            <tr>
+                                <td colspan="4" style="text-align:center;color:var(--text-muted);">Loading
+                                    observations...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- COMPARISON TAB -->
+        <div class="tab-content" id="tab-comparison">
+            <div class="section">
+                <h2 class="section-title">🎯 Forecast Accuracy Analysis</h2>
+
+                <div class="accuracy-grid">
+                    <div class="accuracy-card">
+                        <div class="value" id="avgVariance" style="color: var(--accent-cyan);">--</div>
+                        <div class="label">Avg Variance (ft)</div>
+                    </div>
+                    <div class="accuracy-card">
+                        <div class="value" id="maxOver" style="color: var(--color-warning);">--</div>
+                        <div class="label">Max Over-predict</div>
+                    </div>
+                    <div class="accuracy-card">
+                        <div class="value" id="maxUnder" style="color: var(--color-safe);">--</div>
+                        <div class="label">Max Under-predict</div>
+                    </div>
+                    <div class="accuracy-card">
+                        <div class="value" id="comparisonCount">0</div>
+                        <div class="label">Data Points</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Forecast</th>
+                                <th>Actual</th>
+                                <th>Variance</th>
+                                <th>% Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparisonTable">
+                            <tr>
+                                <td colspan="5" style="text-align:center;color:var(--text-muted);">Collecting data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG TAB -->
+        <div class="tab-content" id="tab-log">
+            <div class="section">
+                <h2 class="section-title">📝 Manual Observation Log</h2>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;">
+                    Auto-logging from USGS is enabled. Use manual entry for additional observations or if API fails.
+                </p>
+
+                <div class="input-section">
+                    <h4>Add Manual Observation</h4>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label>Date/Time</label>
+                            <input type="datetime-local" id="logDatetime">
+                        </div>
+                        <div class="input-group">
+                            <label>Water Level (ft)</label>
+                            <input type="number" id="logLevel" step="0.01" placeholder="e.g. 26.64">
+                        </div>
+                        <div class="input-group">
+                            <label>Flow (cfs)</label>
+                            <input type="number" id="logFlow" step="1" placeholder="optional">
+                        </div>
+                        <button class="btn btn-primary" onclick="logManualObs()">Log</button>
+                        <button class="btn" onclick="setNow()">Now</button>
+                    </div>
+                </div>
+
+                <h2 class="section-title" style="margin-top:24px;">All Logged Observations</h2>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Level</th>
+                                <th>Flow</th>
+                                <th>Source</th>
+                                <th>Forecast</th>
+                                <th>Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTable">
+                            <tr>
+                                <td colspan="6" style="text-align:center;color:var(--text-muted);">No observations
+                                    logged</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top:16px;display:flex;gap:8px;">
+                    <button class="btn" onclick="exportCSV()">📥 Export CSV</button>
+                    <button class="btn btn-danger" onclick="clearLogs()">🗑️ Clear All</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="resources-grid">
+            <a href="tel:3604161404" class="resource-card">
+                <div class="resource-icon">📞</div>
+                <div class="resource-content">
+                    <h3>River Hotline</h3>
+                    <p>(360) 416-1404</p>
+                </div>
+            </a>
+            <a href="https://water.noaa.gov/gauges/mvew1" target="_blank" class="resource-card">
+                <div class="resource-icon">📈</div>
+                <div class="resource-content">
+                    <h3>NWPS Gauge</h3>
+                    <p>Official forecast</p>
+                </div>
+            </a>
+            <a href="https://waterdata.usgs.gov/monitoring-location/12200500/" target="_blank" class="resource-card">
+                <div class="resource-icon">🌊</div>
+                <div class="resource-content">
+                    <h3>USGS Gauge</h3>
+                    <p>Real-time data</p>
+                </div>
+            </a>
+            <a href="https://www.skagitcounty.net/reporting/roadclose/" target="_blank" class="resource-card">
+                <div class="resource-icon">🚗</div>
+                <div class="resource-content">
+                    <h3>Road Closures</h3>
+                    <p>Live updates</p>
+                </div>
+            </a>
+            <a href="https://www.skagitcounty.net/flood" target="_blank" class="resource-card">
+                <div class="resource-icon">🏛️</div>
+                <div class="resource-content">
+                    <h3>County Info</h3>
+                    <p>Flood resources</p>
+                </div>
+            </a>
+        </div>
+
+        <footer>
+            <div class="update-badge">
+                <span class="dot" style="width:6px;height:6px;background:var(--color-safe);border-radius:50%;"></span>
+                <span id="lastUpdate">Initializing...</span>
+            </div>
+            <p>Data: <a href="https://api.water.noaa.gov" target="_blank">NOAA NWPS API</a> • <a
+                    href="https://waterservices.usgs.gov" target="_blank">USGS Water Services</a></p>
+            <div class="safety-banner">⚠️ <strong>TURN AROUND, DON'T DROWN!</strong> Never drive through flooded roads.
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // ===================
+        // CONFIGURATION
+        // ===================
+        // ===================
+        // CONFIGURATION & STATE
+        // ===================
+        const LOCATIONS = {
+            'MVEW1': {
+                name: 'Mount Vernon',
+                full_name: 'Mount Vernon, WA - USGS 12200500',
+                usgs_site: '12200500',
+                nws_gauge: 'MVEW1',
+                stages: {
+                    action: 25, // Near Flood
+                    flood: 28.0,
+                    moderate: 32.0,
+                    major: 35.0,
+                    record: 38.86,
+                    max_gauge: 50
+                }
+            },
+            'CONW1': {
+                name: 'Concrete',
+                full_name: 'Concrete, WA - USGS 12194000',
+                usgs_site: '12194000',
+                nws_gauge: 'CONW1',
+                stages: {
+                    action: 24.5,
+                    flood: 28.0,
+                    moderate: 30.0,
+                    major: 32.5,
+                    record: 42.22,
+                    max_gauge: 50
+                }
+            }
+        };
+
+        const CONFIG = {
+            REFRESH_INTERVAL: 300000,
+        };
+
+        // ===================
+        // STATE
+        // ===================
+        let state = {
+            currentLoc: 'MVEW1',
+            currentLevel: null,
+            currentFlow: null,
+            forecast: [],
+            observations: [],
+            loggedObs: [],
+            lastUSGSUpdate: null,
+            lastNWPSUpdate: null,
+        };
+
+        // Helper to get formatted endpoints for current location
+        function getEndpoints() {
+            const loc = LOCATIONS[state.currentLoc];
+            return {
+                USGS_IV: `https://waterservices.usgs.gov/nwis/iv/?sites=${loc.usgs_site}&format=json&parameterCd=00065,00060&period=P1D`,
+                NWPS_FORECAST: `https://api.water.noaa.gov/nwps/v1/gauges/${loc.nws_gauge}/stageflow`,
+                NWS_ALERTS: `https://api.weather.gov/alerts/active?zone=WAZ506,WAZ507`,
+            };
+        }
+
+        // ===================
+        // INITIALIZATION
+        // ===================
+        function init() {
+            createRain();
+            loadFromStorage();
+
+            // Restore last selected location
+            const savedLoc = localStorage.getItem('flood_tracker_loc');
+            if (savedLoc && LOCATIONS[savedLoc]) {
+                state.currentLoc = savedLoc;
+                const sel = document.getElementById('locationSelect');
+                if (sel) sel.value = savedLoc;
+            }
+
+            updateLocationUI();
+            setNow();
+            refreshAll();
+
+            setInterval(refreshAll, CONFIG.REFRESH_INTERVAL);
+        }
+
+        function switchLocation(newLoc) {
+            if (!LOCATIONS[newLoc]) return;
+            state.currentLoc = newLoc;
+            state.currentLevel = null;
+            state.forecast = [];
+            state.observations = [];
+
+            localStorage.setItem('flood_tracker_loc', newLoc);
+
+            updateLocationUI();
+            refreshAll();
+        }
+
+        function updateLocationUI() {
+            const loc = LOCATIONS[state.currentLoc];
+            document.getElementById('locationTitle').textContent = `📍 ${loc.full_name}`;
+            document.getElementById('gaugeTitle').textContent = loc.name;
+            updateGaugeLabels();
+        }
+
+        function updateGaugeLabels() {
+            const loc = LOCATIONS[state.currentLoc];
+            const labels = document.querySelector('.gauge-labels');
+            if (labels) {
+                labels.innerHTML = `
+                    <span>0</span>
+                    <span>${loc.stages.flood} (Flood)</span>
+                    <span>${loc.stages.moderate}</span>
+                    <span>${loc.stages.major}</span>
+                    <span>${loc.stages.record} (Rec)</span>
+                    <span>${loc.stages.max_gauge} ft</span>
+                `;
+            }
+        }
+
+        function createRain() {
+            const c = document.getElementById('rain');
+            for (let i = 0; i < 60; i++) {
+                const d = document.createElement('div');
+                d.className = 'rain-drop';
+                d.style.cssText = `left:${Math.random() * 100}%;height:${Math.random() * 15 + 8}px;animation-duration:${Math.random() * 0.4 + 0.4}s;animation-delay:${Math.random() * 2}s`;
+                c.appendChild(d);
+            }
+        }
+
+        // ===================
+        // API FETCHING
+        // ===================
+        async function refreshAll() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading...';
+
+            const API = getEndpoints();
+
+            await Promise.all([
+                fetchUSGS(API.USGS_IV),
+                fetchNWPSForecast(API.NWPS_FORECAST),
+                fetchAlerts(API.NWS_ALERTS),
+            ]);
+
+            updateDisplay();
+            renderAll();
+            saveToStorage();
+
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh All';
+            document.getElementById('lastUpdate').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+        }
+
+        async function fetchUSGS(url) {
+            const badge = document.getElementById('usgsStatus');
+            badge.className = 'api-badge loading';
+            badge.querySelector('span:last-child').textContent = 'USGS: Loading...';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                const timeSeries = data.value.timeSeries;
+                let stageData = null;
+                let flowData = null;
+
+                for (const series of timeSeries) {
+                    const paramCode = series.variable.variableCode[0].value;
+                    const values = series.values[0].value;
+
+                    if (paramCode === '00065') { // Gage height
+                        stageData = values;
+                    } else if (paramCode === '00060') { // Discharge
+                        flowData = values;
+                    }
+                }
+
+                if (stageData && stageData.length > 0) {
+                    // Get latest reading
+                    const latest = stageData[stageData.length - 1];
+                    state.currentLevel = parseFloat(latest.value);
+                    state.lastUSGSUpdate = new Date(latest.dateTime);
+
+                    // Store observations for display
+                    state.observations = stageData.map((v, i) => ({
+                        datetime: new Date(v.dateTime),
+                        level: parseFloat(v.value),
+                        flow: flowData && flowData[i] ? parseFloat(flowData[i].value) : null,
+                    })).reverse(); // Most recent first
+
+                    // Auto-log latest observation
+                    autoLogObservation(state.observations[0]);
+                }
+
+                if (flowData && flowData.length > 0) {
+                    const latest = flowData[flowData.length - 1];
+                    state.currentFlow = parseFloat(latest.value);
+                }
+
+                badge.className = 'api-badge success';
+                badge.querySelector('span:last-child').textContent = `USGS: ${state.currentLevel?.toFixed(2) || '--'} ft`;
+
+            } catch (err) {
+                console.error('USGS fetch error:', err);
+                badge.className = 'api-badge error';
+                badge.querySelector('span:last-child').textContent = 'USGS: Error (CORS?)';
+            }
+        }
+
+        async function fetchNWPSForecast(url) {
+            const badge = document.getElementById('nwpsStatus');
+            badge.className = 'api-badge loading';
+            badge.querySelector('span:last-child').textContent = 'NWPS: Loading...';
+
+            try {
+                // Fetch the stageflow endpoint
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Parse forecast data from the new structure: data.forecast.data
+                // Units: primary (stage) in ft, secondary (flow) in kcfs
+                if (data && data.forecast && data.forecast.data) {
+                    state.forecast = data.forecast.data.map(f => ({
+                        datetime: new Date(f.validTime),
+                        stage: f.primary,
+                        // secondary is usually kcfs, convert to cfs
+                        flow: f.secondary ? f.secondary * 1000 : null,
+                    }));
+                } else {
+                    throw new Error('Invalid data structure');
+                }
+
+                state.lastNWPSUpdate = new Date();
+                badge.className = 'api-badge success';
+                badge.querySelector('span:last-child').textContent = `NWPS: ${state.forecast.length} pts`;
+
+            } catch (err) {
+                console.error('NWPS forecast error:', err);
+                badge.className = 'api-badge error';
+                badge.querySelector('span:last-child').textContent = 'NWPS: Error';
+
+                // Load fallback static forecast
+                loadFallbackForecast();
+            }
+        }
+
+        async function fetchAlerts(url) {
+            const badge = document.getElementById('alertsStatus');
+            badge.className = 'api-badge loading';
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const container = document.getElementById('alertsContainer');
+                container.innerHTML = '';
+
+                const floodAlerts = (data.features || []).filter(f =>
+                    f.properties.event?.toLowerCase().includes('flood')
+                );
+
+                if (floodAlerts.length > 0) {
+                    floodAlerts.forEach(alert => {
+                        const props = alert.properties;
+                        const div = document.createElement('div');
+                        div.className = `alert-item ${props.severity === 'Severe' ? '' : 'warning'}`;
+                        div.innerHTML = `
+                            <h4>⚠️ ${props.event}</h4>
+                            <p>${props.headline || props.description?.substring(0, 200) + '...'}</p>
+                        `;
+                        container.appendChild(div);
+                    });
+
+                    badge.className = 'api-badge error';
+                    badge.querySelector('span:last-child').textContent = `Alerts: ${floodAlerts.length} active`;
+                } else {
+                    badge.className = 'api-badge success';
+                    badge.querySelector('span:last-child').textContent = 'Alerts: None';
+                }
+
+            } catch (err) {
+                console.error('Alerts fetch error:', err);
+                badge.className = 'api-badge error';
+                badge.querySelector('span:last-child').textContent = 'Alerts: Error';
+            }
+        }
+
+        // Fallback forecast data
+        function loadFallbackForecast() {
+            // Static forecast from NWRFC (Dec 10, 2025)
+            const fallback = [
+                { datetime: '2025-12-10T18:00:00', stage: 26.66 },
+                { datetime: '2025-12-11T00:00:00', stage: 28.79 },
+                { datetime: '2025-12-11T06:00:00', stage: 30.31 },
+                { datetime: '2025-12-11T12:00:00', stage: 33.56 },
+                { datetime: '2025-12-11T18:00:00', stage: 36.23 },
+                { datetime: '2025-12-12T00:00:00', stage: 38.94 },
+                { datetime: '2025-12-12T06:00:00', stage: 41.14 },
+                { datetime: '2025-12-12T12:00:00', stage: 41.54 },
+                { datetime: '2025-12-12T18:00:00', stage: 40.90 },
+                { datetime: '2025-12-13T00:00:00', stage: 38.73 },
+                { datetime: '2025-12-13T06:00:00', stage: 34.86 },
+                { datetime: '2025-12-13T12:00:00', stage: 25.56 },
+            ];
+
+            state.forecast = fallback.map(f => ({
+                datetime: new Date(f.datetime),
+                stage: f.stage,
+                flow: null,
+            }));
+        }
+
+        // ===================
+        // AUTO-LOGGING
+        // ===================
+        function autoLogObservation(obs) {
+            if (!obs || !obs.level) return;
+
+            const key = obs.datetime.toISOString().slice(0, 16);
+            const existing = state.loggedObs.find(o =>
+                new Date(o.datetime).toISOString().slice(0, 16) === key
+            );
+
+            if (!existing) {
+                const forecast = findForecast(obs.datetime);
+                state.loggedObs.push({
+                    id: Date.now(),
+                    datetime: obs.datetime.toISOString(),
+                    level: obs.level,
+                    flow: obs.flow,
+                    source: 'USGS',
+                    forecastLevel: forecast?.stage || null,
+                    variance: forecast ? (obs.level - forecast.stage) : null,
+                });
+
+                // Keep last 500 observations
+                if (state.loggedObs.length > 500) {
+                    state.loggedObs = state.loggedObs.slice(-500);
+                }
+            }
+        }
+
+        function findForecast(datetime) {
+            const target = new Date(datetime).getTime();
+            let closest = null;
+            let minDiff = Infinity;
+
+            for (const f of state.forecast) {
+                const diff = Math.abs(f.datetime.getTime() - target);
+                if (diff < minDiff && diff < 6 * 60 * 60 * 1000) { // Within 6 hours
+                    minDiff = diff;
+                    closest = f;
+                }
+            }
+            return closest;
+        }
+
+        // ===================
+        // DISPLAY UPDATES
+        // ===================
+        // ===================
+        // DISPLAY UPDATES
+        // ===================
+        function updateDisplay() {
+            const level = state.currentLevel;
+            const flow = state.currentFlow;
+            const loc = LOCATIONS[state.currentLoc];
+
+            if (level !== null) {
+                document.getElementById('currentLevel').innerHTML = `${level.toFixed(2)} <span>ft</span>`;
+
+                // Trend
+                if (state.observations.length >= 2) {
+                    const prev = state.observations[1]?.level;
+                    if (prev) {
+                        const diff = level - prev;
+                        const trend = document.getElementById('levelTrend');
+                        if (diff > 0.05) {
+                            trend.className = 'stat-change rising';
+                            trend.innerHTML = `<span>↑</span> +${diff.toFixed(2)} ft (15m)`;
+                        } else if (diff < -0.05) {
+                            trend.className = 'stat-change falling';
+                            trend.innerHTML = `<span>↓</span> ${diff.toFixed(2)} ft (15m)`;
+                        } else {
+                            trend.className = 'stat-change stable';
+                            trend.innerHTML = `<span>→</span> Stable`;
+                        }
+                    }
+                }
+
+                // Flood distance
+                const bf = loc.stages.flood - level;
+                const bfEl = document.getElementById('belowFlood');
+                if (bf > 0) {
+                    bfEl.innerHTML = `${bf.toFixed(1)} <span>ft below</span>`;
+                    bfEl.style.color = 'var(--color-safe)';
+                    document.getElementById('floodPct').innerHTML = `<span>${((level / loc.stages.flood) * 100).toFixed(0)}% of flood</span>`;
+                } else {
+                    bfEl.innerHTML = `+${Math.abs(bf).toFixed(1)} <span>ft OVER</span>`;
+                    bfEl.style.color = 'var(--color-warning)';
+                    document.getElementById('floodPct').innerHTML = `<span style="color:var(--color-warning)">⚠️ FLOODING</span>`;
+                }
+
+                // Status banner
+                const s = getStatus(level);
+                document.getElementById('statusBanner').className = `status-banner ${s.c}`;
+                document.getElementById('statusTitle').textContent = s.t;
+                document.getElementById('statusDescription').textContent = s.d;
+                document.getElementById('statusIcon').textContent = s.i;
+
+                // Gauge marker
+                document.getElementById('gaugeMarker').style.left = `${Math.min((level / loc.stages.max_gauge) * 100, 100)}%`;
+            }
+
+            if (flow !== null) {
+                document.getElementById('flowRate').innerHTML = `${Math.round(flow).toLocaleString()} <span>cfs</span>`;
+            }
+
+            // Crest info
+            if (state.forecast.length > 0) {
+                const crest = state.forecast.reduce((max, f) => f.stage > max.stage ? f : max, state.forecast[0]);
+                document.getElementById('crestValue').innerHTML = `${crest.stage.toFixed(2)} <span>ft</span>`;
+                document.getElementById('crestPreview').innerHTML = `${crest.stage.toFixed(1)} <span>ft</span>`;
+                document.getElementById('crestDateTime').textContent = `Expected: ${formatDateTime(crest.datetime)}`;
+                document.getElementById('crestTime').innerHTML = `<span>${formatDateTime(crest.datetime)}</span>`;
+
+                const diff = crest.stage - loc.stages.record;
+                if (diff > 0) {
+                    document.getElementById('crestComparison').innerHTML = `<strong>+${diff.toFixed(2)} ft ABOVE RECORD</strong>`;
+                } else {
+                    document.getElementById('crestComparison').textContent = `${Math.abs(diff).toFixed(2)} ft below record`;
+                }
+            }
+
+            // Accuracy stats
+            const withVariance = state.loggedObs.filter(o => o.variance !== null);
+            if (withVariance.length > 0) {
+                const avgVar = withVariance.reduce((sum, o) => sum + Math.abs(o.variance), 0) / withVariance.length;
+                const accuracy = Math.max(0, 100 - (avgVar / loc.stages.flood * 100));
+
+                document.getElementById('accuracyPct').innerHTML = `${accuracy.toFixed(0)}<span>%</span>`;
+                document.getElementById('accuracyDesc').innerHTML = `<span>±${avgVar.toFixed(2)} ft avg</span>`;
+                document.getElementById('avgVariance').textContent = `±${avgVar.toFixed(2)}`;
+
+                const variances = withVariance.map(o => o.variance);
+                document.getElementById('maxOver').textContent = `+${Math.max(0, ...variances).toFixed(2)}`;
+                document.getElementById('maxUnder').textContent = `${Math.min(0, ...variances).toFixed(2)}`;
+                document.getElementById('comparisonCount').textContent = withVariance.length;
+            }
+
+            document.getElementById('obsCount').textContent = state.loggedObs.length;
+        }
+
+        // ===================
+        // RENDERING
+        // ===================
+        function renderAll() {
+            renderForecastTable();
+            renderObservedTable();
+            renderComparisonTable();
+            renderLogTable();
+            renderChart();
+        }
+
+        function renderForecastTable() {
+            const tbody = document.getElementById('forecastTable');
+
+            if (state.forecast.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">No forecast data</td></tr>';
+                return;
+            }
+
+            const crest = state.forecast.reduce((max, f) => f.stage > max.stage ? f : max, state.forecast[0]);
+            const now = new Date();
+
+            let html = '';
+            state.forecast.forEach(f => {
+                const isCrest = f === crest;
+                const isPast = f.datetime < now;
+
+                // Find actual observation for this time
+                const actual = state.loggedObs.find(o => {
+                    const diff = Math.abs(new Date(o.datetime).getTime() - f.datetime.getTime());
+                    return diff < 3 * 60 * 60 * 1000;
+                });
+
+                const variance = actual ? (actual.level - f.stage) : null;
+
+                html += `<tr class="${isCrest ? 'crest' : ''} ${isPast && actual ? 'current' : ''}">
+                    <td>${formatDateTime(f.datetime)}${isCrest ? ' 🔺' : ''}</td>
+                    <td>${f.stage.toFixed(2)} ft</td>
+                    <td>${actual ? actual.level.toFixed(2) + ' ft' : '--'}</td>
+                    <td>${getVarianceBadge(variance)}</td>
+                    <td>${getStageBadge(f.stage)}</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function renderObservedTable() {
+            const tbody = document.getElementById('observedTable');
+
+            if (state.observations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">No observations</td></tr>';
+                return;
+            }
+
+            let html = '';
+            state.observations.slice(0, 50).forEach((o, i) => {
+                const prev = state.observations[i + 1];
+                const change = prev ? (o.level - prev.level) : 0;
+
+                html += `<tr>
+                    <td>${formatDateTime(o.datetime)}</td>
+                    <td>${o.level.toFixed(2)} ft</td>
+                    <td>${o.flow ? o.flow.toLocaleString() : '--'}</td>
+                    <td>${change > 0.01 ? `<span style="color:var(--color-warning)">↑ +${change.toFixed(2)}</span>` :
+                        change < -0.01 ? `<span style="color:var(--color-safe)">↓ ${change.toFixed(2)}</span>` :
+                            '<span style="color:var(--text-muted)">→</span>'}</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function renderComparisonTable() {
+            const tbody = document.getElementById('comparisonTable');
+            const withVariance = state.loggedObs.filter(o => o.variance !== null).slice(-50).reverse();
+
+            if (withVariance.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">No comparison data yet</td></tr>';
+                return;
+            }
+
+            let html = '';
+            withVariance.forEach(o => {
+                const pctError = ((o.variance / o.forecastLevel) * 100).toFixed(1);
+                html += `<tr>
+                    <td>${formatDateTime(new Date(o.datetime))}</td>
+                    <td>${o.forecastLevel.toFixed(2)} ft</td>
+                    <td>${o.level.toFixed(2)} ft</td>
+                    <td>${getVarianceBadge(o.variance)}</td>
+                    <td>${pctError}%</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function renderLogTable() {
+            const tbody = document.getElementById('logTable');
+
+            if (state.loggedObs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No observations logged</td></tr>';
+                return;
+            }
+
+            let html = '';
+            state.loggedObs.slice(-100).reverse().forEach(o => {
+                html += `<tr>
+                    <td>${formatDateTime(new Date(o.datetime))}</td>
+                    <td>${o.level.toFixed(2)} ft</td>
+                    <td>${o.flow ? o.flow.toLocaleString() : '--'}</td>
+                    <td>${o.source || 'Manual'}</td>
+                    <td>${o.forecastLevel ? o.forecastLevel.toFixed(2) + ' ft' : '--'}</td>
+                    <td>${getVarianceBadge(o.variance)}</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function renderChart() {
+            const canvas = document.getElementById('forecastChart');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = canvas.parentElement.clientWidth - 32;
+            canvas.height = 280;
+
+            const w = canvas.width, h = canvas.height;
+            const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+            const chartW = w - pad.left - pad.right;
+            const chartH = h - pad.top - pad.bottom;
+
+            ctx.fillStyle = '#1a2332';
+            ctx.fillRect(0, 0, w, h);
+
+            // Combine data
+            const allData = [
+                ...state.forecast.map(f => ({ time: f.datetime.getTime(), value: f.stage, type: 'forecast' })),
+                ...state.loggedObs.map(o => ({ time: new Date(o.datetime).getTime(), value: o.level, type: 'actual' })),
+            ];
+
+            if (allData.length === 0) {
+                ctx.fillStyle = '#8b949e';
+                ctx.font = '14px Space Grotesk';
+                ctx.textAlign = 'center';
+                ctx.fillText('No data to display', w / 2, h / 2);
+                return;
+            }
+
+            const minTime = Math.min(...allData.map(d => d.time));
+            const maxTime = Math.max(...allData.map(d => d.time));
+            const minVal = Math.min(15, ...allData.map(d => d.value));
+            const maxVal = Math.max(45, ...allData.map(d => d.value));
+
+            const scaleX = t => pad.left + ((t - minTime) / (maxTime - minTime || 1)) * chartW;
+            const scaleY = v => pad.top + chartH - ((v - minVal) / (maxVal - minVal || 1)) * chartH;
+
+            // Grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            for (let v = Math.ceil(minVal / 5) * 5; v <= maxVal; v += 5) {
+                const y = scaleY(v);
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(w - pad.right, y);
+                ctx.stroke();
+                ctx.fillStyle = '#8b949e';
+                ctx.font = '10px JetBrains Mono';
+                ctx.textAlign = 'right';
+                ctx.fillText(v + '', pad.left - 5, y + 3);
+            }
+
+            // Flood stage line
+            ctx.strokeStyle = 'rgba(248, 81, 73, 0.5)';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, scaleY(CONFIG.FLOOD_STAGE));
+            ctx.lineTo(w - pad.right, scaleY(CONFIG.FLOOD_STAGE));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Forecast line
+            const forecastPts = allData.filter(d => d.type === 'forecast').sort((a, b) => a.time - b.time);
+            if (forecastPts.length > 1) {
+                ctx.strokeStyle = '#bc00ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                forecastPts.forEach((p, i) => {
+                    const x = scaleX(p.time), y = scaleY(p.value);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+
+            // Actual line
+            const actualPts = allData.filter(d => d.type === 'actual').sort((a, b) => a.time - b.time);
+            if (actualPts.length > 1) {
+                ctx.strokeStyle = '#39c5cf';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                actualPts.forEach((p, i) => {
+                    const x = scaleX(p.time), y = scaleY(p.value);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+
+            // Points
+            actualPts.slice(-20).forEach(p => {
+                ctx.fillStyle = '#39c5cf';
+                ctx.beginPath();
+                ctx.arc(scaleX(p.time), scaleY(p.value), 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // ===================
+        // HELPERS
+        // ===================
+        function getStatus(l) {
+            if (l >= CONFIG.RECORD_STAGE) return { c: 'record', t: '🟣 RECORD TERRITORY', d: 'Historic flooding! Follow all evacuation orders!', i: '🟣' };
+            if (l >= 35) return { c: 'major', t: '🔴 MAJOR FLOOD', d: 'Significant flooding - Evacuate if ordered!', i: '🔴' };
+            if (l >= 32) return { c: 'warning', t: '🟠 MODERATE FLOOD', d: 'Flooding in low areas - Be ready to evacuate', i: '🟠' };
+            if (l >= 28) return { c: 'action', t: '🟡 FLOOD STAGE', d: 'Monitor closely - Prepare to evacuate', i: '🟡' };
+            if (l >= 25) return { c: 'action', t: '🟡 NEAR FLOOD', d: 'River rising - Stay alert', i: '🟡' };
+            return { c: 'safe', t: '🟢 BELOW FLOOD', d: 'Below flood stage - Continue monitoring', i: '🟢' };
+        }
+
+        function getStageBadge(l) {
+            if (l >= CONFIG.RECORD_STAGE) return '<span class="stage-badge record">RECORD</span>';
+            if (l >= 35) return '<span class="stage-badge major">MAJOR</span>';
+            if (l >= 32) return '<span class="stage-badge warning">MODERATE</span>';
+            if (l >= 28) return '<span class="stage-badge action">ACTION</span>';
+            return '<span class="stage-badge safe">NORMAL</span>';
+        }
+
+        function getVarianceBadge(v) {
+            if (v === null || v === undefined) return '--';
+            if (Math.abs(v) < 0.5) return `<span class="variance close">${v >= 0 ? '+' : ''}${v.toFixed(2)}</span>`;
+            if (v > 0) return `<span class="variance over">+${v.toFixed(2)}</span>`;
+            return `<span class="variance under">${v.toFixed(2)}</span>`;
+        }
+
+        function formatDateTime(d) {
+            return d.toLocaleString('en-US', {
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // ===================
+        // MANUAL LOGGING
+        // ===================
+        function setNow() {
+            const now = new Date();
+            document.getElementById('logDatetime').value = now.toISOString().slice(0, 16);
+        }
+
+        function logManualObs() {
+            const datetime = document.getElementById('logDatetime').value;
+            const level = parseFloat(document.getElementById('logLevel').value);
+            const flow = parseFloat(document.getElementById('logFlow').value) || null;
+
+            if (!datetime || isNaN(level)) {
+                alert('Enter date/time and water level');
+                return;
+            }
+
+            const forecast = findForecast(new Date(datetime));
+            state.loggedObs.push({
+                id: Date.now(),
+                datetime: new Date(datetime).toISOString(),
+                level,
+                flow,
+                source: 'Manual',
+                forecastLevel: forecast?.stage || null,
+                variance: forecast ? (level - forecast.stage) : null,
+            });
+
+            saveToStorage();
+            updateDisplay();
+            renderAll();
+
+            document.getElementById('logLevel').value = '';
+            document.getElementById('logFlow').value = '';
+            setNow();
+        }
+
+        // ===================
+        // STORAGE
+        // ===================
+        function saveToStorage() {
+            localStorage.setItem('skagit_v4', JSON.stringify({
+                loggedObs: state.loggedObs,
+                forecast: state.forecast.map(f => ({ ...f, datetime: f.datetime.toISOString() })),
+            }));
+        }
+
+        function loadFromStorage() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('skagit_v4'));
+                if (saved) {
+                    state.loggedObs = saved.loggedObs || [];
+                    if (saved.forecast) {
+                        state.forecast = saved.forecast.map(f => ({
+                            ...f,
+                            datetime: new Date(f.datetime),
+                        }));
+                    }
+                }
+            } catch (e) { }
+        }
+
+        function exportCSV() {
+            if (state.loggedObs.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            let csv = 'DateTime,Level,Flow,Source,Forecast,Variance\n';
+            state.loggedObs.forEach(o => {
+                csv += `${o.datetime},${o.level},${o.flow || ''},${o.source || ''},${o.forecastLevel || ''},${o.variance?.toFixed(2) || ''}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `skagit_flood_data_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+        }
+
+        function clearLogs() {
+            if (confirm('Delete ALL logged observations?')) {
+                state.loggedObs = [];
+                saveToStorage();
+                updateDisplay();
+                renderAll();
+            }
+        }
+
+        // ===================
+        // TABS
+        // ===================
+        function showTab(id) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${id}')"]`).classList.add('active');
+            document.getElementById(`tab-${id}`).classList.add('active');
+            if (id === 'forecast') renderChart();
+        }
+
+        // ===================
+        // START
+        // ===================
+        init();
+    </script>
+</body>
+
+</html>
