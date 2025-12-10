@@ -1578,12 +1578,15 @@
                 const data = await response.json();
 
                 const timeSeries = data.value.timeSeries;
+                console.log('USGS Data received:', timeSeries.length, 'series');
+
                 let stageData = null;
                 let flowData = null;
 
                 for (const series of timeSeries) {
                     const paramCode = series.variable.variableCode[0].value;
                     const values = series.values[0].value;
+                    console.log(`Checking series: ${paramCode} with ${values.length} values`);
 
                     if (paramCode === '00065') { // Gage height
                         stageData = values;
@@ -1596,6 +1599,7 @@
                     // Get latest reading
                     const latest = stageData[stageData.length - 1];
                     state.currentLevel = parseFloat(latest.value);
+                    console.log('Latest Stage:', state.currentLevel);
                     state.lastUSGSUpdate = new Date(latest.dateTime);
 
                     // Store observations for display
@@ -1607,6 +1611,8 @@
 
                     // Auto-log latest observation
                     autoLogObservation(state.observations[0]);
+                } else {
+                    console.warn('USGS: No stage data found in response');
                 }
 
                 if (flowData && flowData.length > 0) {
@@ -1710,6 +1716,29 @@
                 console.error('Alerts fetch error:', err);
                 badge.className = 'api-badge error';
                 badge.querySelector('span:last-child').textContent = 'NWS Alerts: Error';
+            }
+        }
+
+        async function fetchRainfall(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                // NWS Obs API: properties.precipitationLastHour.value (m)
+                // We want to sum up recent rainfall or show last hour
+                // For simplicity, let's grab the last valid reading
+                const p = data.properties.precipitationLastHour;
+                if (p && p.value !== null) {
+                    // Convert meters to inches
+                    const inches = p.value * 39.3701;
+                    state.rainfall = inches;
+                } else {
+                    state.rainfall = 0;
+                }
+            } catch (err) {
+                console.warn('Rainfall fetch error:', err);
+                state.rainfall = null;
             }
         }
 
