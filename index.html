@@ -1871,41 +1871,61 @@
         }
 
         function renderChart() {
-            const canvas = document.getElementById('forecastChart');
-            const ctx = canvas.getContext('2d');
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+            const w = ctx.canvas.width = document.getElementById('forecastChart').offsetWidth;
+            const h = ctx.canvas.height = document.getElementById('forecastChart').offsetHeight;
 
-            canvas.width = canvas.parentElement.clientWidth - 32;
-            canvas.height = 280;
+            ctx.clearRect(0, 0, w, h);
 
-            const w = canvas.width, h = canvas.height;
-            const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+            // Data Preparation
+            const allData = [
+                ...state.observations.map(o => ({ time: o.datetime.getTime(), value: o.level, type: 'actual' })),
+                ...state.forecast.map(f => ({ time: f.datetime.getTime(), value: f.stage, type: 'forecast' }))
+            ].sort((a, b) => a.time - b.time);
+
+            if (allData.length === 0) return;
+
+            const loc = LOCATIONS[state.currentLoc];
+
+            const minTime = allData[0].time;
+            const maxTime = allData[allData.length - 1].time;
+            const minVal = Math.floor(Math.min(...allData.map(d => d.value), 20)); // Min 20ft
+            const maxVal = Math.ceil(Math.max(...allData.map(d => d.value), loc.stages.flood + 5));
+
+            const pad = { top: 20, right: 50, bottom: 30, left: 40 };
             const chartW = w - pad.left - pad.right;
             const chartH = h - pad.top - pad.bottom;
 
-            ctx.fillStyle = '#1a2332';
-            ctx.fillRect(0, 0, w, h);
-
-            // Combine data
-            const allData = [
-                ...state.forecast.map(f => ({ time: f.datetime.getTime(), value: f.stage, type: 'forecast' })),
-                ...state.loggedObs.map(o => ({ time: new Date(o.datetime).getTime(), value: o.level, type: 'actual' })),
-            ];
-
-            if (allData.length === 0) {
-                ctx.fillStyle = '#8b949e';
-                ctx.font = '14px Space Grotesk';
-                ctx.textAlign = 'center';
-                ctx.fillText('No data to display', w / 2, h / 2);
-                return;
-            }
-
-            const minTime = Math.min(...allData.map(d => d.time));
-            const maxTime = Math.max(...allData.map(d => d.time));
-            const minVal = Math.min(15, ...allData.map(d => d.value));
-            const maxVal = Math.max(45, ...allData.map(d => d.value));
-
             const scaleX = t => pad.left + ((t - minTime) / (maxTime - minTime || 1)) * chartW;
             const scaleY = v => pad.top + chartH - ((v - minVal) / (maxVal - minVal || 1)) * chartH;
+
+            // Rainfall Scale (Right Axis)
+            const maxRain = 0.5; // Fixed max 0.5 inch per hour for scale
+            const scaleYRain = v => pad.top + chartH - (v / maxRain) * (chartH * 0.3); // Rain takes bottom 30%
+
+            // Rainfall Bars
+            if (state.rainfall && state.rainfall.length > 0) {
+                ctx.fillStyle = 'rgba(57, 197, 207, 0.4)'; // Cyan with opacity
+
+                state.rainfall.forEach(r => {
+                    const t = r.datetime.getTime();
+                    if (t >= minTime && t <= maxTime) {
+                        const x = scaleX(t);
+                        const y = scaleYRain(r.value);
+                        const bottom = pad.top + chartH;
+                        const height = bottom - y;
+
+                        // Draw bar (width ~4px)
+                        ctx.fillRect(x - 2, y, 4, height);
+                    }
+                });
+
+                // Rain Axis Label
+                ctx.fillStyle = '#39c5cf';
+                ctx.textAlign = 'left';
+                ctx.font = '10px JetBrains Mono';
+                ctx.fillText('Actual Rain (in/hr)', w - 90, pad.top + chartH - 5);
+            }
 
             // Grid
             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -1926,10 +1946,15 @@
             ctx.strokeStyle = 'rgba(248, 81, 73, 0.5)';
             ctx.setLineDash([5, 5]);
             ctx.beginPath();
-            ctx.moveTo(pad.left, scaleY(CONFIG.FLOOD_STAGE));
-            ctx.lineTo(w - pad.right, scaleY(CONFIG.FLOOD_STAGE));
+            ctx.moveTo(pad.left, scaleY(loc.stages.flood));
+            ctx.lineTo(w - pad.right, scaleY(loc.stages.flood));
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Flood Label
+            ctx.fillStyle = 'rgba(248, 81, 73, 0.8)';
+            ctx.textAlign = 'right';
+            ctx.fillText('FLOOD', w - pad.right - 5, scaleY(loc.stages.flood) - 5);
 
             // Forecast line
             const forecastPts = allData.filter(d => d.type === 'forecast').sort((a, b) => a.time - b.time);
