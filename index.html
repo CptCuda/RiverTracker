@@ -440,6 +440,65 @@
             background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
         }
 
+        /* Ticker Styles */
+        .ticker-wrap {
+            width: 100%;
+            background: #251b1b;
+            border-bottom: 1px solid var(--color-danger);
+            overflow: hidden;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .ticker-title {
+            background: var(--color-danger);
+            color: white;
+            padding: 0 16px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .ticker {
+            display: flex;
+            white-space: nowrap;
+            padding-left: 20px;
+            animation: ticker 30s linear infinite;
+        }
+
+        .ticker:hover {
+            animation-play-state: paused;
+        }
+
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            padding-right: 48px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .ticker-item strong {
+            color: var(--color-danger);
+            margin-right: 8px;
+        }
+
+        @keyframes ticker {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
         /* Gauge Visual */
         .gauge-container {
             position: relative;
@@ -1435,6 +1494,8 @@
                 fetchUSGS(API.USGS_IV),
                 fetchNWPSForecast(API.NWPS_FORECAST),
                 fetchAlerts(API.NWS_ALERTS),
+                fetchRainfall(API.NWS_OBS),
+                fetchRoadClosures()
             ]);
 
             updateDisplay();
@@ -1615,6 +1676,53 @@
                 stage: f.stage,
                 flow: null,
             }));
+        }
+
+        async function fetchRoadClosures() {
+            try {
+                // Use AllOrigins proxy to bypass CORS
+                const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.skagitcounty.net/reporting/roadclose/');
+                const response = await fetch(proxyUrl);
+                const data = await response.json();
+
+                if (!data.contents) return;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data.contents, 'text/html');
+                const ticker = document.getElementById('tickerContent');
+                const wrap = document.getElementById('roadTicker');
+
+                // Find all table rows
+                const rows = Array.from(doc.querySelectorAll('tr'));
+                let closures = [];
+
+                rows.forEach(row => {
+                    const text = row.innerText;
+                    // Look for rows with "Closed" or "Hazard"
+                    if (text.includes('Closed') || text.includes('Water over Roadway') || text.includes('Tree')) {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length > 2) {
+                            // Clean up the text - finding the "Closure" description
+                            const fullText = row.innerText.replace(/\s+/g, ' ').trim();
+                            if (fullText.length > 10 && !fullText.includes('Road Name')) {
+                                closures.push(fullText);
+                            }
+                        }
+                    }
+                });
+
+                if (closures.length > 0) {
+                    wrap.style.display = 'flex';
+                    ticker.innerHTML = closures.map(c =>
+                        `<div class="ticker-item">⚠️ ${c}</div>`
+                    ).join('');
+                } else {
+                    wrap.style.display = 'none';
+                }
+
+            } catch (err) {
+                console.warn('Road closure fetch failed:', err);
+            }
         }
 
         // ===================
