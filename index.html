@@ -1960,6 +1960,8 @@
 
             } catch (err) {
                 console.error('Display update failed:', err);
+                const el = document.getElementById('currentLevel');
+                if (el) el.innerHTML = `<span style="font-size:12px;color:red">Err: ${err.message}</span>`;
             }
         }
 
