@@ -1922,44 +1922,45 @@
                 // Rest of display logic...
                 // (Abbreviated, ensure closure is correct)
 
+
+
+                // Crest info
+                if (state.forecast.length > 0) {
+                    const crest = state.forecast.reduce((max, f) => f.stage > max.stage ? f : max, state.forecast[0]);
+                    document.getElementById('crestValue').innerHTML = `${crest.stage.toFixed(2)} <span>ft</span>`;
+                    document.getElementById('crestPreview').innerHTML = `${crest.stage.toFixed(1)} <span>ft</span>`;
+                    document.getElementById('crestDateTime').textContent = `Expected: ${formatDateTime(crest.datetime)}`;
+                    document.getElementById('crestTime').innerHTML = `<span>${formatDateTime(crest.datetime)}</span>`;
+
+                    const diff = crest.stage - loc.stages.record;
+                    if (diff > 0) {
+                        document.getElementById('crestComparison').innerHTML = `<strong>+${diff.toFixed(2)} ft ABOVE RECORD</strong>`;
+                    } else {
+                        document.getElementById('crestComparison').textContent = `${Math.abs(diff).toFixed(2)} ft below record`;
+                    }
+                }
+
+                // Accuracy stats
+                const withVariance = state.loggedObs.filter(o => o.variance !== null);
+                if (withVariance.length > 0) {
+                    const avgVar = withVariance.reduce((sum, o) => sum + Math.abs(o.variance), 0) / withVariance.length;
+                    const accuracy = Math.max(0, 100 - (avgVar / loc.stages.flood * 100));
+
+                    document.getElementById('accuracyPct').innerHTML = `${accuracy.toFixed(0)}<span>%</span>`;
+                    document.getElementById('accuracyDesc').innerHTML = `<span>±${avgVar.toFixed(2)} ft avg</span>`;
+                    document.getElementById('avgVariance').textContent = `±${avgVar.toFixed(2)}`;
+
+                    const variances = withVariance.map(o => o.variance);
+                    document.getElementById('maxOver').textContent = `+${Math.max(0, ...variances).toFixed(2)}`;
+                    document.getElementById('maxUnder').textContent = `${Math.min(0, ...variances).toFixed(2)}`;
+                    document.getElementById('comparisonCount').textContent = withVariance.length;
+                }
+
+                document.getElementById('obsCount').textContent = state.loggedObs.length;
+
             } catch (err) {
                 console.error('Display update failed:', err);
             }
-        }
-
-        // Crest info
-        if (state.forecast.length > 0) {
-            const crest = state.forecast.reduce((max, f) => f.stage > max.stage ? f : max, state.forecast[0]);
-            document.getElementById('crestValue').innerHTML = `${crest.stage.toFixed(2)} <span>ft</span>`;
-            document.getElementById('crestPreview').innerHTML = `${crest.stage.toFixed(1)} <span>ft</span>`;
-            document.getElementById('crestDateTime').textContent = `Expected: ${formatDateTime(crest.datetime)}`;
-            document.getElementById('crestTime').innerHTML = `<span>${formatDateTime(crest.datetime)}</span>`;
-
-            const diff = crest.stage - loc.stages.record;
-            if (diff > 0) {
-                document.getElementById('crestComparison').innerHTML = `<strong>+${diff.toFixed(2)} ft ABOVE RECORD</strong>`;
-            } else {
-                document.getElementById('crestComparison').textContent = `${Math.abs(diff).toFixed(2)} ft below record`;
-            }
-        }
-
-        // Accuracy stats
-        const withVariance = state.loggedObs.filter(o => o.variance !== null);
-        if (withVariance.length > 0) {
-            const avgVar = withVariance.reduce((sum, o) => sum + Math.abs(o.variance), 0) / withVariance.length;
-            const accuracy = Math.max(0, 100 - (avgVar / loc.stages.flood * 100));
-
-            document.getElementById('accuracyPct').innerHTML = `${accuracy.toFixed(0)}<span>%</span>`;
-            document.getElementById('accuracyDesc').innerHTML = `<span>±${avgVar.toFixed(2)} ft avg</span>`;
-            document.getElementById('avgVariance').textContent = `±${avgVar.toFixed(2)}`;
-
-            const variances = withVariance.map(o => o.variance);
-            document.getElementById('maxOver').textContent = `+${Math.max(0, ...variances).toFixed(2)}`;
-            document.getElementById('maxUnder').textContent = `${Math.min(0, ...variances).toFixed(2)}`;
-            document.getElementById('comparisonCount').textContent = withVariance.length;
-        }
-
-        document.getElementById('obsCount').textContent = state.loggedObs.length;
         }
 
         // ===================
