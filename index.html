@@ -1408,6 +1408,7 @@
                 USGS_IV: `https://waterservices.usgs.gov/nwis/iv/?sites=${loc.usgs_site}&format=json&parameterCd=00065,00060&period=P1D`,
                 NWPS_FORECAST: `https://api.water.noaa.gov/nwps/v1/gauges/${loc.nws_gauge}/stageflow`,
                 NWS_ALERTS: `https://api.weather.gov/alerts/active?zone=WAZ506,WAZ507`,
+                NWS_OBS: `https://api.weather.gov/stations/${loc.nws_station}/observations`,
             };
         }
 
