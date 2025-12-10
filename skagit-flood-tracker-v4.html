@@ -1964,19 +1964,21 @@
         // HELPERS
         // ===================
         function getStatus(l) {
-            if (l >= CONFIG.RECORD_STAGE) return { c: 'record', t: '🟣 RECORD TERRITORY', d: 'Historic flooding! Follow all evacuation orders!', i: '🟣' };
-            if (l >= 35) return { c: 'major', t: '🔴 MAJOR FLOOD', d: 'Significant flooding - Evacuate if ordered!', i: '🔴' };
-            if (l >= 32) return { c: 'warning', t: '🟠 MODERATE FLOOD', d: 'Flooding in low areas - Be ready to evacuate', i: '🟠' };
-            if (l >= 28) return { c: 'action', t: '🟡 FLOOD STAGE', d: 'Monitor closely - Prepare to evacuate', i: '🟡' };
-            if (l >= 25) return { c: 'action', t: '🟡 NEAR FLOOD', d: 'River rising - Stay alert', i: '🟡' };
+            const stages = LOCATIONS[state.currentLoc].stages;
+            if (l >= stages.record) return { c: 'record', t: '🟣 RECORD TERRITORY', d: 'Historic flooding! Follow all evacuation orders!', i: '🟣' };
+            if (l >= stages.major) return { c: 'major', t: '🔴 MAJOR FLOOD', d: 'Significant flooding - Evacuate if ordered!', i: '🔴' };
+            if (l >= stages.moderate) return { c: 'warning', t: '🟠 MODERATE FLOOD', d: 'Flooding in low areas - Be ready to evacuate', i: '🟠' };
+            if (l >= stages.flood) return { c: 'action', t: '🟡 FLOOD STAGE', d: 'Monitor closely - Prepare to evacuate', i: '🟡' };
+            if (l >= stages.action) return { c: 'action', t: '🟡 NEAR FLOOD', d: 'River rising - Stay alert', i: '🟡' };
             return { c: 'safe', t: '🟢 BELOW FLOOD', d: 'Below flood stage - Continue monitoring', i: '🟢' };
         }
 
         function getStageBadge(l) {
-            if (l >= CONFIG.RECORD_STAGE) return '<span class="stage-badge record">RECORD</span>';
-            if (l >= 35) return '<span class="stage-badge major">MAJOR</span>';
-            if (l >= 32) return '<span class="stage-badge warning">MODERATE</span>';
-            if (l >= 28) return '<span class="stage-badge action">ACTION</span>';
+            const stages = LOCATIONS[state.currentLoc].stages;
+            if (l >= stages.record) return '<span class="stage-badge record">RECORD</span>';
+            if (l >= stages.major) return '<span class="stage-badge major">MAJOR</span>';
+            if (l >= stages.moderate) return '<span class="stage-badge warning">MODERATE</span>';
+            if (l >= stages.flood) return '<span class="stage-badge action">ACTION</span>';
             return '<span class="stage-badge safe">NORMAL</span>';
         }
 
