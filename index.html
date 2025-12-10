@@ -525,33 +525,40 @@
             justify-content: center;
             font-size: 9px;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.8);
             text-transform: uppercase;
+            position: relative;
+            /* Border to separate zones */
+            box-shadow: -1px 0 0 rgba(0, 0, 0, 0.2);
         }
 
-        .gauge-zone.safe {
-            background: rgba(46, 160, 67, 0.3);
-            width: 56%;
+        .gauge-zone.normal {
+            background: linear-gradient(90deg, #2ea043 0%, #3fb950 100%);
+            color: #fff;
         }
 
         .gauge-zone.action {
-            background: rgba(210, 153, 34, 0.4);
-            width: 8%;
+            background: linear-gradient(90deg, #d29922 0%, #dbb85d 100%);
         }
 
-        .gauge-zone.warning {
-            background: rgba(248, 129, 73, 0.4);
-            width: 6%;
+        .gauge-zone.minor {
+            background: linear-gradient(90deg, #d46318 0%, #e88d4f 100%);
         }
 
         .gauge-zone.major {
-            background: rgba(248, 81, 73, 0.5);
-            width: 6%;
+            background: linear-gradient(90deg, #f85149 0%, #ff7b72 100%);
         }
 
         .gauge-zone.record {
-            background: rgba(188, 0, 255, 0.5);
-            width: 24%;
+            background: linear-gradient(90deg, #bc00ff 0%, #d869ff 100%);
+        }
+
+        .gauge-label-float {
+            position: absolute;
+            bottom: 2px;
+            font-size: 8px;
+            white-space: nowrap;
+            opacity: 0.8;
         }
 
         .gauge-marker {
@@ -1452,20 +1459,59 @@
             const activeBtn = document.getElementById(`btn-${state.currentLoc}`);
             if (activeBtn) activeBtn.classList.add('active');
 
-            updateGaugeLabels();
+            renderGaugeZones();
         }
 
-        function updateGaugeLabels() {
+        function renderGaugeZones() {
             const loc = LOCATIONS[state.currentLoc];
+            const max = loc.stages.max_gauge;
+            const s = loc.stages;
+
+            // Calculate widths
+            // Ranges:
+            // Normal: 0 -> Action
+            // Action: Action -> Flood
+            // Minor: Flood -> Moderate
+            // Major: Moderate -> Record (or Max)
+            // Record+: Record -> Max
+
+            const pctNormal = (s.action / max) * 100;
+            const pctAction = ((s.flood - s.action) / max) * 100;
+            const pctMinor = ((s.moderate - s.flood) / max) * 100;
+            const pctMajor = ((s.record - s.moderate) / max) * 100;
+            const pctRecord = ((max - s.record) / max) * 100;
+
+            const container = document.querySelector('.gauge-zones');
+            if (container) {
+                container.innerHTML = `
+                    <div class="gauge-zone normal" style="width: ${pctNormal}%">
+                        <span class="gauge-label-float">Normal (0-${s.action})</span>
+                    </div>
+                    <div class="gauge-zone action" style="width: ${pctAction}%" title="Action: ${s.action}-${s.flood}ft">
+                        <span>Has Action</span>
+                    </div>
+                    <div class="gauge-zone minor" style="width: ${pctMinor}%" title="Minor Flood: ${s.flood}-${s.moderate}ft">
+                        <span>Minor</span>
+                    </div>
+                    <div class="gauge-zone major" style="width: ${pctMajor}%" title="Major Flood: ${s.moderate}-${s.record}ft">
+                         <span>Major</span>
+                    </div>
+                    <div class="gauge-zone record" style="width: ${pctRecord}%" title="Record Territory: >${s.record}ft">
+                        <span>Record</span>
+                    </div>
+                `;
+            }
+
+            // Update labels below
             const labels = document.querySelector('.gauge-labels');
             if (labels) {
                 labels.innerHTML = `
                     <span>0</span>
-                    <span>${loc.stages.flood} (Flood)</span>
-                    <span>${loc.stages.moderate}</span>
-                    <span>${loc.stages.major}</span>
-                    <span>${loc.stages.record} (Rec)</span>
-                    <span>${loc.stages.max_gauge} ft</span>
+                    <span style="left:${pctNormal}%">${s.action}</span>
+                    <span style="left:${pctNormal + pctAction}%">${s.flood}</span>
+                    <span style="left:${pctNormal + pctAction + pctMinor}%">${s.moderate}</span>
+                    <span style="left:${pctNormal + pctAction + pctMinor + pctMajor}%">${s.record}</span>
+                    <span>${max}ft</span>
                 `;
             }
         }
