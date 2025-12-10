@@ -147,6 +147,39 @@
             background-clip: text;
         }
 
+        /* Location Toggle Styles */
+        .location-toggle-container {
+            display: inline-flex;
+            background: var(--bg-dark);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 16px;
+        }
+
+        .location-toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .location-toggle-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .location-toggle-btn.active {
+            background: var(--bg-elevated);
+            color: var(--accent-cyan);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
         .subtitle {
             color: var(--text-secondary);
             font-size: 14px;
@@ -920,12 +953,13 @@
     <div class="container">
         <header>
 
-            <div class="header-controls" style="margin-bottom: 12px;">
-                <select id="locationSelect" onchange="switchLocation(this.value)"
-                    style="padding: 8px; border-radius: 6px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color);">
-                    <option value="MVEW1">Mount Vernon (MVEW1)</option>
-                    <option value="CONW1">Concrete (CONW1)</option>
-                </select>
+            <div class="header-controls">
+                <div class="location-toggle-container">
+                    <button class="location-toggle-btn active" id="btn-MVEW1" onclick="switchLocation('MVEW1')">Mount
+                        Vernon</button>
+                    <button class="location-toggle-btn" id="btn-CONW1"
+                        onclick="switchLocation('CONW1')">Concrete</button>
+                </div>
             </div>
             <p class="location-title" id="locationTitle"
                 style="color: var(--accent-cyan); font-weight: 500; margin-bottom: 4px;">📍 Mount Vernon, WA - USGS
@@ -1306,6 +1340,9 @@
         // ===================
         // INITIALIZATION
         // ===================
+        // ===================
+        // INITIALIZATION
+        // ===================
         function init() {
             createRain();
             loadFromStorage();
@@ -1314,8 +1351,6 @@
             const savedLoc = localStorage.getItem('flood_tracker_loc');
             if (savedLoc && LOCATIONS[savedLoc]) {
                 state.currentLoc = savedLoc;
-                const sel = document.getElementById('locationSelect');
-                if (sel) sel.value = savedLoc;
             }
 
             updateLocationUI();
@@ -1342,6 +1377,14 @@
             const loc = LOCATIONS[state.currentLoc];
             document.getElementById('locationTitle').textContent = `📍 ${loc.full_name}`;
             document.getElementById('gaugeTitle').textContent = loc.name;
+
+            // Update Toggle State
+            document.querySelectorAll('.location-toggle-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.getElementById(`btn-${state.currentLoc}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
             updateGaugeLabels();
         }
 
