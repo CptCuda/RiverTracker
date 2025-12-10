@@ -919,10 +919,18 @@
 
     <div class="container">
         <header>
-            <div class="location-badge">
-                <span>📍</span> Mount Vernon, WA - USGS 12200500 / NWRFC MVEW1
+
+            <div class="header-controls" style="margin-bottom: 12px;">
+                <select id="locationSelect" onchange="switchLocation(this.value)"
+                    style="padding: 8px; border-radius: 6px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color);">
+                    <option value="MVEW1">Mount Vernon (MVEW1)</option>
+                    <option value="CONW1">Concrete (CONW1)</option>
+                </select>
             </div>
-            <h1>🌊 Skagit River Flood Monitor</h1>
+            <p class="location-title" id="locationTitle"
+                style="color: var(--accent-cyan); font-weight: 500; margin-bottom: 4px;">📍 Mount Vernon, WA - USGS
+                12200500</p>
+            <h1>🌊 <span id="gaugeTitle">Skagit River</span> Flood Monitor</h1>
             <p class="subtitle">Live data from USGS & NOAA with forecast tracking</p>
         </header>
 
@@ -1233,28 +1241,49 @@
         // ===================
         // CONFIGURATION
         // ===================
-        const CONFIG = {
-            USGS_SITE: '12200500',
-            NWPS_GAUGE: 'MVEW1',
-            FLOOD_STAGE: 28.0,
-            RECORD_STAGE: 38.86,
-            MAX_GAUGE: 50,
-            REFRESH_INTERVAL: 300000, // 5 minutes
+        // ===================
+        // CONFIGURATION & STATE
+        // ===================
+        const LOCATIONS = {
+            'MVEW1': {
+                name: 'Mount Vernon',
+                full_name: 'Mount Vernon, WA - USGS 12200500',
+                usgs_site: '12200500',
+                nws_gauge: 'MVEW1',
+                stages: {
+                    action: 25, // Near Flood
+                    flood: 28.0,
+                    moderate: 32.0,
+                    major: 35.0,
+                    record: 38.86,
+                    max_gauge: 50
+                }
+            },
+            'CONW1': {
+                name: 'Concrete',
+                full_name: 'Concrete, WA - USGS 12194000',
+                usgs_site: '12194000',
+                nws_gauge: 'CONW1',
+                stages: {
+                    action: 24.5,
+                    flood: 28.0,
+                    moderate: 30.0,
+                    major: 32.5,
+                    record: 42.22,
+                    max_gauge: 50
+                }
+            }
         };
 
-        // API Endpoints
-        const API = {
-            USGS_IV: `https://waterservices.usgs.gov/nwis/iv/?sites=${CONFIG.USGS_SITE}&format=json&parameterCd=00065,00060&period=P1D`,
-            NWPS_GAUGE: `https://api.water.noaa.gov/nwps/v1/gauges/${CONFIG.NWPS_GAUGE}`,
-            // UPDATED: Use stageflow endpoint which contains both obs and forecast
-            NWPS_FORECAST: `https://api.water.noaa.gov/nwps/v1/gauges/${CONFIG.NWPS_GAUGE}/stageflow`,
-            NWS_ALERTS: `https://api.weather.gov/alerts/active?zone=WAZ506,WAZ507`, // Skagit zones
+        const CONFIG = {
+            REFRESH_INTERVAL: 300000,
         };
 
         // ===================
         // STATE
         // ===================
         let state = {
+            currentLoc: 'MVEW1',
             currentLevel: null,
             currentFlow: null,
             forecast: [],
@@ -1264,17 +1293,71 @@
             lastNWPSUpdate: null,
         };
 
+        // Helper to get formatted endpoints for current location
+        function getEndpoints() {
+            const loc = LOCATIONS[state.currentLoc];
+            return {
+                USGS_IV: `https://waterservices.usgs.gov/nwis/iv/?sites=${loc.usgs_site}&format=json&parameterCd=00065,00060&period=P1D`,
+                NWPS_FORECAST: `https://api.water.noaa.gov/nwps/v1/gauges/${loc.nws_gauge}/stageflow`,
+                NWS_ALERTS: `https://api.weather.gov/alerts/active?zone=WAZ506,WAZ507`,
+            };
+        }
+
         // ===================
         // INITIALIZATION
         // ===================
         function init() {
             createRain();
             loadFromStorage();
+
+            // Restore last selected location
+            const savedLoc = localStorage.getItem('flood_tracker_loc');
+            if (savedLoc && LOCATIONS[savedLoc]) {
+                state.currentLoc = savedLoc;
+                const sel = document.getElementById('locationSelect');
+                if (sel) sel.value = savedLoc;
+            }
+
+            updateLocationUI();
             setNow();
             refreshAll();
 
-            // Auto-refresh every 5 minutes
             setInterval(refreshAll, CONFIG.REFRESH_INTERVAL);
+        }
+
+        function switchLocation(newLoc) {
+            if (!LOCATIONS[newLoc]) return;
+            state.currentLoc = newLoc;
+            state.currentLevel = null;
+            state.forecast = [];
+            state.observations = [];
+
+            localStorage.setItem('flood_tracker_loc', newLoc);
+
+            updateLocationUI();
+            refreshAll();
+        }
+
+        function updateLocationUI() {
+            const loc = LOCATIONS[state.currentLoc];
+            document.getElementById('locationTitle').textContent = `📍 ${loc.full_name}`;
+            document.getElementById('gaugeTitle').textContent = loc.name;
+            updateGaugeLabels();
+        }
+
+        function updateGaugeLabels() {
+            const loc = LOCATIONS[state.currentLoc];
+            const labels = document.querySelector('.gauge-labels');
+            if (labels) {
+                labels.innerHTML = `
+                    <span>0</span>
+                    <span>${loc.stages.flood} (Flood)</span>
+                    <span>${loc.stages.moderate}</span>
+                    <span>${loc.stages.major}</span>
+                    <span>${loc.stages.record} (Rec)</span>
+                    <span>${loc.stages.max_gauge} ft</span>
+                `;
+            }
         }
 
         function createRain() {
@@ -1295,10 +1378,12 @@
             btn.disabled = true;
             btn.textContent = '⏳ Loading...';
 
+            const API = getEndpoints();
+
             await Promise.all([
-                fetchUSGS(),
-                fetchNWPSForecast(),
-                fetchAlerts(),
+                fetchUSGS(API.USGS_IV),
+                fetchNWPSForecast(API.NWPS_FORECAST),
+                fetchAlerts(API.NWS_ALERTS),
             ]);
 
             updateDisplay();
@@ -1310,13 +1395,13 @@
             document.getElementById('lastUpdate').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
         }
 
-        async function fetchUSGS() {
+        async function fetchUSGS(url) {
             const badge = document.getElementById('usgsStatus');
             badge.className = 'api-badge loading';
             badge.querySelector('span:last-child').textContent = 'USGS: Loading...';
 
             try {
-                const response = await fetch(API.USGS_IV);
+                const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
 
@@ -1367,14 +1452,14 @@
             }
         }
 
-        async function fetchNWPSForecast() {
+        async function fetchNWPSForecast(url) {
             const badge = document.getElementById('nwpsStatus');
             badge.className = 'api-badge loading';
             badge.querySelector('span:last-child').textContent = 'NWPS: Loading...';
 
             try {
                 // Fetch the stageflow endpoint
-                const response = await fetch(API.NWPS_FORECAST);
+                const response = await fetch(url);
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -1409,12 +1494,12 @@
             }
         }
 
-        async function fetchAlerts() {
+        async function fetchAlerts(url) {
             const badge = document.getElementById('alertsStatus');
             badge.className = 'api-badge loading';
 
             try {
-                const response = await fetch(API.NWS_ALERTS);
+                const response = await fetch(url);
                 const data = await response.json();
 
                 const container = document.getElementById('alertsContainer');
@@ -1523,9 +1608,13 @@
         // ===================
         // DISPLAY UPDATES
         // ===================
+        // ===================
+        // DISPLAY UPDATES
+        // ===================
         function updateDisplay() {
             const level = state.currentLevel;
             const flow = state.currentFlow;
+            const loc = LOCATIONS[state.currentLoc];
 
             if (level !== null) {
                 document.getElementById('currentLevel').innerHTML = `${level.toFixed(2)} <span>ft</span>`;
@@ -1550,12 +1639,12 @@
                 }
 
                 // Flood distance
-                const bf = CONFIG.FLOOD_STAGE - level;
+                const bf = loc.stages.flood - level;
                 const bfEl = document.getElementById('belowFlood');
                 if (bf > 0) {
                     bfEl.innerHTML = `${bf.toFixed(1)} <span>ft below</span>`;
                     bfEl.style.color = 'var(--color-safe)';
-                    document.getElementById('floodPct').innerHTML = `<span>${((level / CONFIG.FLOOD_STAGE) * 100).toFixed(0)}% of flood</span>`;
+                    document.getElementById('floodPct').innerHTML = `<span>${((level / loc.stages.flood) * 100).toFixed(0)}% of flood</span>`;
                 } else {
                     bfEl.innerHTML = `+${Math.abs(bf).toFixed(1)} <span>ft OVER</span>`;
                     bfEl.style.color = 'var(--color-warning)';
@@ -1570,7 +1659,7 @@
                 document.getElementById('statusIcon').textContent = s.i;
 
                 // Gauge marker
-                document.getElementById('gaugeMarker').style.left = `${Math.min((level / CONFIG.MAX_GAUGE) * 100, 100)}%`;
+                document.getElementById('gaugeMarker').style.left = `${Math.min((level / loc.stages.max_gauge) * 100, 100)}%`;
             }
 
             if (flow !== null) {
@@ -1585,9 +1674,9 @@
                 document.getElementById('crestDateTime').textContent = `Expected: ${formatDateTime(crest.datetime)}`;
                 document.getElementById('crestTime').innerHTML = `<span>${formatDateTime(crest.datetime)}</span>`;
 
-                const diff = crest.stage - CONFIG.RECORD_STAGE;
+                const diff = crest.stage - loc.stages.record;
                 if (diff > 0) {
-                    document.getElementById('crestComparison').innerHTML = `<strong>+${diff.toFixed(2)} ft ABOVE 2021 RECORD</strong>`;
+                    document.getElementById('crestComparison').innerHTML = `<strong>+${diff.toFixed(2)} ft ABOVE RECORD</strong>`;
                 } else {
                     document.getElementById('crestComparison').textContent = `${Math.abs(diff).toFixed(2)} ft below record`;
                 }
@@ -1597,7 +1686,7 @@
             const withVariance = state.loggedObs.filter(o => o.variance !== null);
             if (withVariance.length > 0) {
                 const avgVar = withVariance.reduce((sum, o) => sum + Math.abs(o.variance), 0) / withVariance.length;
-                const accuracy = Math.max(0, 100 - (avgVar / CONFIG.FLOOD_STAGE * 100));
+                const accuracy = Math.max(0, 100 - (avgVar / loc.stages.flood * 100));
 
                 document.getElementById('accuracyPct').innerHTML = `${accuracy.toFixed(0)}<span>%</span>`;
                 document.getElementById('accuracyDesc').innerHTML = `<span>±${avgVar.toFixed(2)} ft avg</span>`;
