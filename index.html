@@ -1537,12 +1537,26 @@
 
             const API = getEndpoints();
 
-            await Promise.all([
-                fetchUSGS(API.USGS_IV),
-                fetchNWPSForecast(API.NWPS_FORECAST),
-                fetchAlerts(API.NWS_ALERTS),
-                fetchRainfall(API.NWS_OBS)
-            ]);
+            const timeout = (prom, time, exception) => {
+                let timer;
+                return Promise.race([
+                    prom,
+                    new Promise((_r, rej) => timer = setTimeout(rej, time, exception))
+                ]).finally(() => clearTimeout(timer));
+            };
+
+            const TIMEOUT_MS = 10000; // 10s strict timeout
+
+            try {
+                await Promise.all([
+                    timeout(fetchUSGS(API.USGS_IV), TIMEOUT_MS, 'USGS Timeout'),
+                    timeout(fetchNWPSForecast(API.NWPS_FORECAST), TIMEOUT_MS, 'NWPS Timeout'),
+                    timeout(fetchAlerts(API.NWS_ALERTS), TIMEOUT_MS, 'Alerts Timeout'),
+                    timeout(fetchRainfall(API.NWS_OBS), TIMEOUT_MS, 'Rainfall Timeout')
+                ]);
+            } catch (err) {
+                console.warn('One or more fetches timed out:', err);
+            }
 
             updateDisplay();
             renderAll();
