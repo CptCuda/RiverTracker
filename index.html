@@ -1702,10 +1702,26 @@
                     if (text.includes('Closed') || text.includes('Water over Roadway') || text.includes('Tree')) {
                         const cells = row.querySelectorAll('td');
                         if (cells.length > 2) {
-                            // Clean up the text - finding the "Closure" description
-                            const fullText = row.innerText.replace(/\s+/g, ' ').trim();
-                            if (fullText.length > 10 && !fullText.includes('Road Name')) {
-                                closures.push(fullText);
+                            // Date is usually the last column
+                            const dateStr = cells[cells.length - 1].innerText.trim();
+                            const date = new Date(dateStr);
+                            const weekAgo = new Date();
+                            weekAgo.setDate(weekAgo.getDate() - 7);
+
+                            // Check if valid date and within last week
+                            if (!isNaN(date.getTime())) {
+                                if (date > weekAgo) {
+                                    const fullText = row.innerText.replace(/\s+/g, ' ').trim();
+                                    if (fullText.length > 10 && !fullText.includes('Road Name')) {
+                                        closures.push(fullText);
+                                    }
+                                }
+                            } else {
+                                // Fallback: if no date found, show it anyway (safest)
+                                const fullText = row.innerText.replace(/\s+/g, ' ').trim();
+                                if (fullText.length > 10 && !fullText.includes('Road Name')) {
+                                    closures.push(fullText);
+                                }
                             }
                         }
                     }
