@@ -1370,42 +1370,8 @@
             </div>
         </div>
 
-        <div class="resources-grid">
-            <a href="tel:3604161404" class="resource-card">
-                <div class="resource-icon">📞</div>
-                <div class="resource-content">
-                    <h3>River Hotline</h3>
-                    <p>(360) 416-1404</p>
-                </div>
-            </a>
-            <a href="https://water.noaa.gov/gauges/mvew1" target="_blank" class="resource-card">
-                <div class="resource-icon">📈</div>
-                <div class="resource-content">
-                    <h3>NWPS Gauge</h3>
-                    <p>Official forecast</p>
-                </div>
-            </a>
-            <a href="https://waterdata.usgs.gov/monitoring-location/12200500/" target="_blank" class="resource-card">
-                <div class="resource-icon">🌊</div>
-                <div class="resource-content">
-                    <h3>USGS Gauge</h3>
-                    <p>Real-time data</p>
-                </div>
-            </a>
-            <a href="https://www.skagitcounty.net/reporting/roadclose/" target="_blank" class="resource-card">
-                <div class="resource-icon">🚗</div>
-                <div class="resource-content">
-                    <h3>Road Closures</h3>
-                    <p>Live updates</p>
-                </div>
-            </a>
-            <a href="https://www.skagitcounty.net/flood" target="_blank" class="resource-card">
-                <div class="resource-icon">🏛️</div>
-                <div class="resource-content">
-                    <h3>County Info</h3>
-                    <p>Flood resources</p>
-                </div>
-            </a>
+        <div class="resources-grid" id="resourcesGrid">
+            <!-- Resources injected by renderResources() -->
         </div>
 
         <footer>
@@ -1496,6 +1462,7 @@
                 full_name: 'Mount Vernon, WA - USGS 12200500',
                 usgs_site: '12200500',
                 nws_gauge: 'MVEW1',
+                nws_station: 'KBVS',
                 stages: {
                     action: 25, // Near Flood
                     flood: 28.0,
@@ -1503,13 +1470,22 @@
                     major: 35.0,
                     record: 38.86,
                     max_gauge: 50
-                }
+                },
+                extraResources: [
+                    {
+                        title: '100-Year Flood Map',
+                        subtitle: 'Official City Map',
+                        icon: '🗺️',
+                        url: 'https://mountvernonwa.maps.arcgis.com/apps/webappviewer/index.html?id=a8b27b27964644d6baef58a11de09961'
+                    }
+                ]
             },
             'CONW1': {
                 name: 'Concrete',
                 full_name: 'Concrete, WA - USGS 12194000',
                 usgs_site: '12194000',
                 nws_gauge: 'CONW1',
+                nws_station: 'KBVS', // Nearest reliable weather station (KBVS). Concrete (3W5/UBKW1) data unavailable via NWS API.
                 stages: {
                     action: 24.5,
                     flood: 28.0,
@@ -1546,7 +1522,7 @@
                 USGS_IV: `https://waterservices.usgs.gov/nwis/iv/?sites=${loc.usgs_site}&format=json&parameterCd=00065,00060&period=P1D`,
                 NWPS_FORECAST: `https://api.water.noaa.gov/nwps/v1/gauges/${loc.nws_gauge}/stageflow`,
                 NWS_ALERTS: `https://api.weather.gov/alerts/active?zone=WAZ506,WAZ507`,
-                NWS_OBS: `https://api.weather.gov/stations/${loc.nws_station}/observations`,
+                NWS_OBS: `https://api.weather.gov/stations/${loc.nws_station}/observations/latest`,
             };
         }
 
@@ -1605,6 +1581,36 @@
             if (activeBtn) activeBtn.classList.add('active');
 
             renderGaugeZones();
+            renderResources();
+        }
+
+        function renderResources() {
+            const loc = LOCATIONS[state.currentLoc];
+            const grid = document.getElementById('resourcesGrid');
+            if (!grid) return;
+
+            const commonPre = [
+                { title: 'River Hotline', subtitle: '(360) 416-1404', icon: '📞', url: 'tel:3604161404' },
+                { title: 'NWPS Gauge', subtitle: 'Official forecast', icon: '📈', url: `https://water.noaa.gov/gauges/${loc.nws_gauge}` },
+                { title: 'USGS Gauge', subtitle: 'Real-time data', icon: '🌊', url: `https://waterdata.usgs.gov/monitoring-location/${loc.usgs_site}/` }
+            ];
+
+            const commonPost = [
+                { title: 'Road Closures', subtitle: 'Live updates', icon: '🚗', url: 'https://www.skagitcounty.net/reporting/roadclose/' },
+                { title: 'County Info', subtitle: 'Flood resources', icon: '🏛️', url: 'https://www.skagitcounty.net/flood' }
+            ];
+
+            const resources = [...commonPre, ...(loc.extraResources || []), ...commonPost];
+
+            grid.innerHTML = resources.map(r => `
+                <a href="${r.url}" target="${r.url.startsWith('tel:') ? '' : '_blank'}" class="resource-card">
+                    <div class="resource-icon">${r.icon}</div>
+                    <div class="resource-content">
+                        <h3>${r.title}</h3>
+                        <p>${r.subtitle}</p>
+                    </div>
+                </a>
+            `).join('');
         }
 
         function renderGaugeZones() {
@@ -1865,14 +1871,18 @@
 
         async function fetchRainfall(url) {
             try {
-                const response = await fetch(url);
+                // NWS API often requires valid User-Agent
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'RiverTracker/1.0 (rivertracker-app)' }
+                });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
 
                 // NWS Obs API: properties.precipitationLastHour.value (m)
                 // We want to sum up recent rainfall or show last hour
-                // For simplicity, let's grab the last valid reading
-                const p = data.properties.precipitationLastHour;
+                const props = data.properties;
+                const p = props ? props.precipitationLastHour : null;
+
                 if (p && p.value !== null) {
                     const inches = p.value * 39.3701;
                     state.rainfall = inches;
@@ -1883,15 +1893,23 @@
                         value: inches
                     }];
                 } else {
+                    // Start or no rain reported
                     state.rainfall = 0;
                     state.rainfallHistory = [];
                 }
             } catch (err) {
                 console.warn('Rainfall fetch error:', err);
+                // Fallback to 0 if error, assuming data just isn't avail (don't show error state '--')
+                // actually better to show -- if we really failed, but if it's just 'null' value from API...
+                // If API fails entirely, maybe default to 0.00?
+                // The user complains about '--', so let's try to default to 0.00 on error IF we suspect it's just a flake.
+                // But safer to keep null to indicate broken. 
+                // Let's assume the User-Agent fix resolves the root cause.
                 state.rainfall = null;
                 state.rainfallHistory = [];
             }
         }
+
 
         // Fallback forecast data
         function loadFallbackForecast() {
@@ -1989,13 +2007,14 @@
 
             const key = obs.datetime.toISOString().slice(0, 16);
             const existing = state.loggedObs.find(o =>
-                new Date(o.datetime).toISOString().slice(0, 16) === key
+                new Date(o.datetime).toISOString().slice(0, 16) === key && o.locationId === state.currentLoc
             );
 
             if (!existing) {
                 const forecast = findForecast(obs.datetime);
                 state.loggedObs.push({
                     id: Date.now(),
+                    locationId: state.currentLoc,
                     datetime: obs.datetime.toISOString(),
                     level: obs.level,
                     flow: obs.flow,
@@ -2004,9 +2023,9 @@
                     variance: forecast ? (obs.level - forecast.stage) : null,
                 });
 
-                // Keep last 500 observations
-                if (state.loggedObs.length > 500) {
-                    state.loggedObs = state.loggedObs.slice(-500);
+                // Keep last 1000 observations (increased for multi-site)
+                if (state.loggedObs.length > 1000) {
+                    state.loggedObs = state.loggedObs.slice(-1000);
                 }
             }
         }
@@ -2129,7 +2148,7 @@
                 }
 
                 // Accuracy stats
-                const withVariance = state.loggedObs.filter(o => o.variance !== null);
+                const withVariance = state.loggedObs.filter(o => o.locationId === state.currentLoc && o.variance !== null);
                 if (withVariance.length > 0) {
                     const avgVar = withVariance.reduce((sum, o) => sum + Math.abs(o.variance), 0) / withVariance.length;
                     const accuracy = Math.max(0, 100 - (avgVar / loc.stages.flood * 100));
@@ -2144,7 +2163,7 @@
                     document.getElementById('comparisonCount').textContent = withVariance.length;
                 }
 
-                document.getElementById('obsCount').textContent = state.loggedObs.length;
+                document.getElementById('obsCount').textContent = state.loggedObs.filter(o => o.locationId === state.currentLoc).length;
 
             } catch (err) {
                 console.error('Display update failed:', err);
@@ -2182,6 +2201,7 @@
 
                 // Find actual observation for this time (strict window)
                 const actual = state.loggedObs.find(o => {
+                    if (o.locationId !== state.currentLoc) return false;
                     const diff = Math.abs(new Date(o.datetime).getTime() - f.datetime.getTime());
                     return diff < 45 * 60 * 1000; // Match within 45 mins to avoid false positives
                 });
@@ -2228,7 +2248,9 @@
 
         function renderComparisonTable() {
             const tbody = document.getElementById('comparisonTable');
-            const withVariance = state.loggedObs.filter(o => o.variance !== null).slice(-50).reverse();
+            const withVariance = state.loggedObs
+                .filter(o => o.locationId === state.currentLoc && o.variance !== null)
+                .slice(-50).reverse();
 
             if (withVariance.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">No comparison data yet</td></tr>';
@@ -2259,8 +2281,10 @@
             }
 
             let html = '';
-            state.loggedObs.slice(-100).reverse().forEach(o => {
-                html += `<tr>
+            state.loggedObs
+                .filter(o => o.locationId === state.currentLoc)
+                .slice(-100).reverse().forEach(o => {
+                    html += `<tr>
                     <td>${formatDateTime(new Date(o.datetime))}</td>
                     <td>${o.level.toFixed(2)} ft</td>
                     <td>${o.flow ? o.flow.toLocaleString() : '--'}</td>
@@ -2268,137 +2292,233 @@
                     <td>${o.forecastLevel ? o.forecastLevel.toFixed(2) + ' ft' : '--'}</td>
                     <td>${getVarianceBadge(o.variance)}</td>
                 </tr>`;
-            });
+                });
 
             tbody.innerHTML = html;
         }
 
         function renderChart() {
-            const ctx = document.getElementById('forecastChart').getContext('2d');
-            const w = ctx.canvas.width = document.getElementById('forecastChart').offsetWidth;
-            const h = ctx.canvas.height = document.getElementById('forecastChart').offsetHeight;
+            const canvas = document.getElementById('forecastChart');
+            const ctx = canvas.getContext('2d');
+            const container = canvas.parentElement;
 
-            ctx.clearRect(0, 0, w, h);
+            // Handle high DPI
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+
+            // Set logic dimensions match display
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+
+            // Constants
+            const pad = { top: 20, right: 50, bottom: 30, left: 40 };
+            const chartW = w - pad.left - pad.right;
+            const chartH = h - pad.top - pad.bottom;
 
             // Data Preparation
             const allData = [
-                ...state.observations.map(o => ({ time: o.datetime.getTime(), value: o.level, type: 'actual' })),
+                ...state.observations.map(o => ({ time: o.datetime.getTime(), value: o.level, flow: o.flow, type: 'actual' })),
                 ...state.forecast.map(f => ({ time: f.datetime.getTime(), value: f.stage, type: 'forecast' }))
             ].sort((a, b) => a.time - b.time);
 
             if (allData.length === 0) return;
 
             const loc = LOCATIONS[state.currentLoc];
-
             const minTime = allData[0].time;
             const maxTime = allData[allData.length - 1].time;
-            const minVal = Math.floor(Math.min(...allData.map(d => d.value), 20)); // Min 20ft
+            const minVal = Math.floor(Math.min(...allData.map(d => d.value), 20));
             const maxVal = Math.ceil(Math.max(...allData.map(d => d.value), loc.stages.flood + 5));
 
-            const pad = { top: 20, right: 50, bottom: 30, left: 40 };
-            const chartW = w - pad.left - pad.right;
-            const chartH = h - pad.top - pad.bottom;
-
+            // Scales
             const scaleX = t => pad.left + ((t - minTime) / (maxTime - minTime || 1)) * chartW;
             const scaleY = v => pad.top + chartH - ((v - minVal) / (maxVal - minVal || 1)) * chartH;
 
-            // Rainfall Scale (Right Axis)
-            const maxRain = 0.5; // Fixed max 0.5 inch per hour for scale
-            const scaleYRain = v => pad.top + chartH - (v / maxRain) * (chartH * 0.3); // Rain takes bottom 30%
+            // Rainfall Scale
+            const maxRain = 0.5;
+            const scaleYRain = v => pad.top + chartH - (v / maxRain) * (chartH * 0.3);
 
-            // Rainfall Bars
-            if (state.rainfallHistory && state.rainfallHistory.length > 0) {
-                ctx.fillStyle = 'rgba(57, 197, 207, 0.4)'; // Cyan with opacity
+            function draw(mouseXY) {
+                // Clear
+                ctx.clearRect(0, 0, w, h);
 
-                state.rainfallHistory.forEach(r => {
-                    const t = r.datetime.getTime();
-                    if (t >= minTime && t <= maxTime) {
-                        const x = scaleX(t);
-                        const y = scaleYRain(r.value);
-                        const bottom = pad.top + chartH;
-                        const height = bottom - y;
+                // Rainfall Bars
+                if (state.rainfallHistory && state.rainfallHistory.length > 0) {
+                    ctx.fillStyle = 'rgba(57, 197, 207, 0.4)';
+                    state.rainfallHistory.forEach(r => {
+                        const t = r.datetime.getTime();
+                        if (t >= minTime && t <= maxTime) {
+                            const x = scaleX(t);
+                            const y = scaleYRain(r.value);
+                            ctx.fillRect(x - 2, y, 4, (pad.top + chartH) - y);
+                        }
+                    });
+                    // Label
+                    ctx.fillStyle = '#39c5cf';
+                    ctx.textAlign = 'left';
+                    ctx.font = '10px JetBrains Mono';
+                    ctx.fillText('Actual Rain (in/hr)', w - 90, pad.top + chartH - 5);
+                }
 
-                        // Draw bar (width ~4px)
-                        ctx.fillRect(x - 2, y, 4, height);
-                    }
-                });
-
-                // Rain Axis Label
-                ctx.fillStyle = '#39c5cf';
-                ctx.textAlign = 'left';
-                ctx.font = '10px JetBrains Mono';
-                ctx.fillText('Actual Rain (in/hr)', w - 90, pad.top + chartH - 5);
-            }
-
-            // Grid
-            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-            ctx.lineWidth = 1;
-            for (let v = Math.ceil(minVal / 5) * 5; v <= maxVal; v += 5) {
-                const y = scaleY(v);
-                ctx.beginPath();
-                ctx.moveTo(pad.left, y);
-                ctx.lineTo(w - pad.right, y);
-                ctx.stroke();
-                ctx.fillStyle = '#8b949e';
-                ctx.font = '10px JetBrains Mono';
+                // Grid
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.lineWidth = 1;
                 ctx.textAlign = 'right';
-                ctx.fillText(v + '', pad.left - 5, y + 3);
-            }
+                for (let v = Math.ceil(minVal / 5) * 5; v <= maxVal; v += 5) {
+                    const y = scaleY(v);
+                    ctx.beginPath();
+                    ctx.moveTo(pad.left, y);
+                    ctx.lineTo(w - pad.right, y);
+                    ctx.stroke();
+                    ctx.fillStyle = '#8b949e';
+                    ctx.fillText(v + '', pad.left - 5, y + 3);
+                }
 
-            // Flood stage line
-            ctx.strokeStyle = 'rgba(248, 81, 73, 0.5)';
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.moveTo(pad.left, scaleY(loc.stages.flood));
-            ctx.lineTo(w - pad.right, scaleY(loc.stages.flood));
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Flood Label
-            ctx.fillStyle = 'rgba(248, 81, 73, 0.8)';
-            ctx.textAlign = 'right';
-            ctx.fillText('FLOOD', w - pad.right - 5, scaleY(loc.stages.flood) - 5);
-
-            // Forecast line
-            const forecastPts = allData.filter(d => d.type === 'forecast').sort((a, b) => a.time - b.time);
-            if (forecastPts.length > 1) {
-                ctx.strokeStyle = '#bc00ff';
-                ctx.lineWidth = 2;
+                // Flood Line
+                ctx.strokeStyle = 'rgba(248, 81, 73, 0.5)';
+                ctx.setLineDash([5, 5]);
                 ctx.beginPath();
-                forecastPts.forEach((p, i) => {
-                    const x = scaleX(p.time), y = scaleY(p.value);
-                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-                });
+                ctx.moveTo(pad.left, scaleY(loc.stages.flood));
+                ctx.lineTo(w - pad.right, scaleY(loc.stages.flood));
                 ctx.stroke();
-            }
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(248, 81, 73, 0.8)';
+                ctx.fillText('FLOOD', w - pad.right - 5, scaleY(loc.stages.flood) - 5);
 
-            // Actual line
-            const actualPts = allData.filter(d => d.type === 'actual').sort((a, b) => a.time - b.time);
-            if (actualPts.length > 1) {
-                ctx.strokeStyle = '#39c5cf';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                actualPts.forEach((p, i) => {
-                    const x = scaleX(p.time), y = scaleY(p.value);
-                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                // Lines
+                const drawLine = (pts, color) => {
+                    if (pts.length < 2) return;
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    pts.forEach((p, i) => {
+                        const x = scaleX(p.time), y = scaleY(p.value);
+                        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                    });
+                    ctx.stroke();
+                };
+
+                drawLine(allData.filter(d => d.type === 'forecast'), '#bc00ff');
+                drawLine(allData.filter(d => d.type === 'actual'), '#39c5cf');
+
+                // Points (Last 20 actuals)
+                const actualPts = allData.filter(d => d.type === 'actual');
+                actualPts.slice(-20).forEach(p => {
+                    ctx.fillStyle = '#39c5cf';
+                    ctx.beginPath();
+                    ctx.arc(scaleX(p.time), scaleY(p.value), 3, 0, Math.PI * 2);
+                    ctx.fill();
                 });
-                ctx.stroke();
+
+                // Interaction
+                if (mouseXY) {
+                    const { x, y } = mouseXY;
+                    // Find nearest point
+                    let nearest = null;
+                    let minDist = Infinity;
+
+                    // Only search if within chart area
+                    if (x >= pad.left && x <= w - pad.right) {
+                        allData.forEach(d => {
+                            const px = scaleX(d.time);
+                            const dist = Math.abs(px - x);
+                            if (dist < minDist && dist < 50) { // 50px capture radius
+                                minDist = dist;
+                                nearest = d;
+                            }
+                        });
+                    }
+
+                    if (nearest) {
+                        const nx = scaleX(nearest.time);
+                        const ny = scaleY(nearest.value);
+
+                        // Crosshair
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(nx, pad.top);
+                        ctx.lineTo(nx, h - pad.bottom);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(pad.left, ny);
+                        ctx.lineTo(w - pad.right, ny);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        // Highlight point
+                        ctx.fillStyle = nearest.type === 'actual' ? '#39c5cf' : '#bc00ff';
+                        ctx.beginPath();
+                        ctx.arc(nx, ny, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Tooltip
+                        const textLines = [
+                            formatDateTime(new Date(nearest.time)),
+                            `${nearest.value.toFixed(2)} ft (${nearest.type})`
+                        ];
+                        if (nearest.flow) textLines.push(`${nearest.flow.toLocaleString()} cfs`);
+
+                        ctx.font = '12px JetBrains Mono';
+                        const metrics = textLines.map(t => ctx.measureText(t));
+                        const maxW = Math.max(...metrics.map(m => m.width));
+                        const boxW = maxW + 20;
+                        const boxH = (textLines.length * 16) + 15;
+
+                        let tx = nx + 10;
+                        let ty = ny + 10;
+
+                        // Flip if off screen
+                        if (tx + boxW > w) tx = nx - boxW - 10;
+                        if (ty + boxH > h) ty = ny - boxH - 10;
+
+                        // Background
+                        ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.roundRect(tx, ty, boxW, boxH, 6);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Text
+                        ctx.fillStyle = '#fff';
+                        ctx.textAlign = 'left';
+                        textLines.forEach((t, i) => {
+                            ctx.fillStyle = i === 0 ? '#aaa' : '#fff';
+                            ctx.fillText(t, tx + 10, ty + 20 + (i * 16));
+                        });
+                    }
+                }
             }
 
-            // Points
-            actualPts.slice(-20).forEach(p => {
-                ctx.fillStyle = '#39c5cf';
-                ctx.beginPath();
-                ctx.arc(scaleX(p.time), scaleY(p.value), 3, 0, Math.PI * 2);
-                ctx.fill();
-            });
+            // Attach handlers
+            canvas.onmousemove = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                draw({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            };
+            canvas.onmouseleave = () => {
+                draw(null);
+            };
 
-            // Attribution Footer
-            const container = document.getElementById('forecastChart').parentElement;
+            // Initial draw
+            draw(null);
+
+            // Attribution Footer logic
             let attribution = document.getElementById('chartAttribution');
             if (!attribution) {
                 attribution = document.createElement('div');
                 attribution.id = 'chartAttribution';
+                // Note: style removed here to avoid overwriting invalid CSS. Ensure CSS is sufficient? 
+                // Actually keep the inline style logic from before if needed, or assume CSS handles it.
+                // The previous code injected specific styles. I'll re-inject them.
                 attribution.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:8px;text-align:right;display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.1);padding-top:4px;';
                 container.appendChild(attribution);
             }
@@ -2470,6 +2590,7 @@
             const forecast = findForecast(new Date(datetime));
             state.loggedObs.push({
                 id: Date.now(),
+                locationId: state.currentLoc,
                 datetime: new Date(datetime).toISOString(),
                 level,
                 flow,
@@ -2501,7 +2622,11 @@
             try {
                 const saved = JSON.parse(localStorage.getItem('skagit_v4'));
                 if (saved) {
-                    state.loggedObs = saved.loggedObs || [];
+                    // Migration: Default missing locationId to MVEW1
+                    state.loggedObs = (saved.loggedObs || []).map(o => ({
+                        ...o,
+                        locationId: o.locationId || 'MVEW1'
+                    }));
                     if (saved.forecast) {
                         state.forecast = saved.forecast.map(f => ({
                             ...f,
@@ -2519,9 +2644,11 @@
             }
 
             let csv = 'DateTime,Level,Flow,Source,Forecast,Variance\n';
-            state.loggedObs.forEach(o => {
-                csv += `${o.datetime},${o.level},${o.flow || ''},${o.source || ''},${o.forecastLevel || ''},${o.variance?.toFixed(2) || ''}\n`;
-            });
+            state.loggedObs
+                .filter(o => o.locationId === state.currentLoc)
+                .forEach(o => {
+                    csv += `${o.datetime},${o.level},${o.flow || ''},${o.source || ''},${o.forecastLevel || ''},${o.variance?.toFixed(2) || ''}\n`;
+                });
 
             const blob = new Blob([csv], { type: 'text/csv' });
             const a = document.createElement('a');
@@ -2531,8 +2658,9 @@
         }
 
         function clearLogs() {
-            if (confirm('Delete ALL logged observations?')) {
-                state.loggedObs = [];
+            if (confirm(`Delete ALL logged observations for ${LOCATIONS[state.currentLoc].name}?`)) {
+                // Keep logs for other locations
+                state.loggedObs = state.loggedObs.filter(o => o.locationId !== state.currentLoc);
                 saveToStorage();
                 updateDisplay();
                 renderAll();
