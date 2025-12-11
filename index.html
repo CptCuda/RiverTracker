@@ -2359,6 +2359,24 @@
                 ctx.arc(scaleX(p.time), scaleY(p.value), 3, 0, Math.PI * 2);
                 ctx.fill();
             });
+
+            // Attribution Footer
+            const container = document.getElementById('forecastChart').parentElement;
+            let attribution = document.getElementById('chartAttribution');
+            if (!attribution) {
+                attribution = document.createElement('div');
+                attribution.id = 'chartAttribution';
+                attribution.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:8px;text-align:right;display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.1);padding-top:4px;';
+                container.appendChild(attribution);
+            }
+
+            const usgsTime = state.lastUSGSUpdate ? formatDateTime(state.lastUSGSUpdate) : '--';
+            const nwpsTime = state.lastNWPSUpdate ? formatDateTime(state.lastNWPSUpdate) : '--';
+
+            attribution.innerHTML = `
+                <span><strong>Actual:</strong> USGS (${usgsTime})</span>
+                <span><strong>Forecast:</strong> NOAA/NWS (${nwpsTime})</span>
+            `;
         }
 
         // ===================
