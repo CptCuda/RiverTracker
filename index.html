@@ -1440,30 +1440,41 @@
                     regulations and emergency orders.</p>
             </div>
 
-            <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
-                <input type="checkbox" id="agreeCheckbox" style="width:20px;height:20px;" onchange="toggleAcceptBtn()">
-                <label for="agreeCheckbox" style="color:var(--text-primary);font-size:14px;cursor:pointer;">I have read
-                    and agree to the above terms</label>
+            <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" id="agreeCheckbox" style="width:20px;height:20px;cursor:pointer;"
+                    onclick="toggleAcceptBtn()">
+                <label for="agreeCheckbox" style="color:white;font-size:14px;cursor:pointer;user-select:none;">I have
+                    read and agree to the above terms</label>
             </div>
 
-            <button class="btn-accept" id="acceptBtn" onclick="acceptDisclaimer()" disabled
-                style="opacity:0.5;cursor:not-allowed;">I Agree & Continue</button>
+            <button class="btn-accept" id="acceptBtn" onclick="acceptDisclaimer()"
+                style="display:block;width:100%;background:#39c5cf;color:black;opacity:0.5;cursor:not-allowed;"
+                disabled>I Agree & Continue</button>
         </div>
     </div>
 
     <script>
+        // Run on load to ensure state
+        window.addEventListener('DOMContentLoaded', () => {
+            toggleAcceptBtn();
+        });
+
         function toggleAcceptBtn() {
-            const cb = document.getElementById('agreeCheckbox');
-            const btn = document.getElementById('acceptBtn');
-            if (cb.checked) {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-                btn.style.cursor = 'pointer';
-            } else {
-                btn.disabled = true;
-                btn.style.opacity = '0.5';
-                btn.style.cursor = 'not-allowed';
-            }
+            try {
+                const cb = document.getElementById('agreeCheckbox');
+                const btn = document.getElementById('acceptBtn');
+
+                if (cb && cb.checked) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.style.background = '#39c5cf'; // Cyan
+                } else if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                }
+            } catch (e) { console.error('Toggle error:', e); }
         }
 
         function acceptDisclaimer() {
