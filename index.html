@@ -997,6 +997,75 @@
             font-size: 12px;
         }
 
+        /* Disclaimer Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-warning);
+            margin-bottom: 16px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-body {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            background: var(--bg-elevated);
+            padding: 16px;
+            border-radius: 8px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .btn-accept {
+            background: var(--color-primary);
+            color: black;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn-accept:hover {
+            opacity: 0.9;
+        }
+
         /* Chart */
         .chart-container {
             background: var(--bg-elevated);
@@ -1098,6 +1167,12 @@
                 <div class="stat-label">Observations</div>
                 <div class="stat-value" id="obsCount">0</div>
                 <div class="stat-change stable"><span>logged</span></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">PRECIPITATION (1HR)</div>
+                <div class="stat-value" id="rainRate">-- <span>in</span></div>
+                <div class="stat-change" id="rainStatus"><span>KBVS</span></div>
             </div>
         </div>
 
@@ -1345,7 +1420,37 @@
         </footer>
     </div>
 
+    <!-- Disclaimer Modal -->
+    <div class="modal-overlay" id="disclaimerModal">
+        <div class="modal-card">
+            <div class="modal-title">
+                ⚠️ Liability Waiver & Disclaimer
+            </div>
+            <div class="modal-body">
+                <p><strong>Please read carefully before proceeding:</strong></p>
+                <p>1. <strong>Accuracy Not Guaranteed:</strong> This application aggregates data from third-party
+                    sources (USGS, NWS, NOAA). This data may be delayed, inaccurate, or provisional.</p>
+                <p>2. <strong>No Liability:</strong> By using this tool, you waive any and all liability against the
+                    creators and operators of this site for any damages, losses, or decisions made based on this
+                    information.</p>
+                <p>3. <strong>Government Guidance:</strong> Always follow official guidance from local emergency
+                    management and government agencies. Do not rely solely on this tool for safety-critical decisions.
+                </p>
+                <p>4. <strong>Compliance:</strong> Users are responsible for complying with all applicable government
+                    regulations and emergency orders.</p>
+            </div>
+            <button class="btn-accept" onclick="acceptDisclaimer()">I Understand & Agree</button>
+        </div>
+    </div>
+
     <script>
+        function acceptDisclaimer() {
+            localStorage.setItem('flood_tracker_disclaimer_accepted_v1', 'true');
+            document.getElementById('disclaimerModal').classList.remove('active');
+        }
+
+        // ... rest of scripts
+
         // ===================
         // CONFIGURATION
         // ===================
@@ -1420,6 +1525,12 @@
         // ===================
         function init() {
             createRain();
+
+            // Check Disclaimer
+            if (!localStorage.getItem('flood_tracker_disclaimer_accepted_v1')) {
+                document.getElementById('disclaimerModal').classList.add('active');
+            }
+
             loadFromStorage();
 
             // Restore last selected location
@@ -1730,15 +1841,22 @@
                 // For simplicity, let's grab the last valid reading
                 const p = data.properties.precipitationLastHour;
                 if (p && p.value !== null) {
-                    // Convert meters to inches
                     const inches = p.value * 39.3701;
                     state.rainfall = inches;
+
+                    // Mock history for chart (single bar at current time)
+                    state.rainfallHistory = [{
+                        datetime: new Date(),
+                        value: inches
+                    }];
                 } else {
                     state.rainfall = 0;
+                    state.rainfallHistory = [];
                 }
             } catch (err) {
                 console.warn('Rainfall fetch error:', err);
                 state.rainfall = null;
+                state.rainfallHistory = [];
             }
         }
 
@@ -1941,6 +2059,14 @@
                     // Gauge marker
                     const gm = document.getElementById('gaugeMarker');
                     if (gm) gm.style.left = `${Math.min((level / loc.stages.max_gauge) * 100, 100)}%`;
+                }
+
+                if (state.rainfall !== null) {
+                    const rr = document.getElementById('rainRate');
+                    if (rr) rr.innerHTML = `${state.rainfall.toFixed(2)} <span>in</span>`;
+                } else {
+                    const rr = document.getElementById('rainRate');
+                    if (rr) rr.innerHTML = `-- <span>in</span>`;
                 }
 
                 if (flow !== null) {
@@ -2148,10 +2274,10 @@
             const scaleYRain = v => pad.top + chartH - (v / maxRain) * (chartH * 0.3); // Rain takes bottom 30%
 
             // Rainfall Bars
-            if (state.rainfall && state.rainfall.length > 0) {
+            if (state.rainfallHistory && state.rainfallHistory.length > 0) {
                 ctx.fillStyle = 'rgba(57, 197, 207, 0.4)'; // Cyan with opacity
 
-                state.rainfall.forEach(r => {
+                state.rainfallHistory.forEach(r => {
                     const t = r.datetime.getTime();
                     if (t >= minTime && t <= maxTime) {
                         const x = scaleX(t);
