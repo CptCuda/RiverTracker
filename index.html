@@ -8,6 +8,12 @@
     <link
         href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
         rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1117">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <script>
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+    </script>
     <style>
         :root {
             --bg-dark: #0a0e14;
@@ -1116,6 +1122,12 @@
                 <span class="dot"></span>
                 <span>NWS Alerts: Loading...</span>
             </div>
+            <div style="display:flex;gap:4px;">
+                <button class="refresh-btn" onclick="toggleNotifications()" id="notifyBtn">🔔 Alerts</button>
+                <button class="btn" onclick="openAlertSettings()"
+                    style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.1);color:var(--text-secondary);padding:0 12px;display:flex;align-items:center;"
+                    title="Configure Alerts">⚙️</button>
+            </div>
             <button class="refresh-btn" onclick="refreshAll()" id="refreshBtn">🔄 Refresh All</button>
         </div>
 
@@ -1386,7 +1398,46 @@
         </footer>
     </div>
 
-    <!-- Disclaimer Modal -->
+    <!-- Alert Settings Modal -->
+    <div class="modal-overlay" id="alertModal">
+        <div class="modal-card">
+            <div class="modal-title">⚙️ Configure Flood Alerts</div>
+            <div class="modal-body">
+                <p>Receive notifications when the river exceeds this level:</p>
+                <div class="input-group" style="margin-bottom:16px;">
+                    <label>Alert Threshold (ft)</label>
+                    <input type="number" id="alertThresholdInput" step="0.1"
+                        style="width:100%;padding:10px;background:#222;border:1px solid #444;color:white;border-radius:4px;font-size:16px;">
+                </div>
+                <p style="font-size:11px;color:#888;">Default Action Stage: <span id="defaultStageVal">--</span> ft</p>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button class="btn" onclick="closeAlertSettings()" style="flex:1;">Cancel</button>
+                <button class="btn btn-primary" onclick="saveAlertSettings()" style="flex:1;">Save Setting</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Settings Modal -->
+    <div class="modal-overlay" id="alertModal">
+        <div class="modal-card">
+            <div class="modal-title">⚙️ Configure Flood Alerts</div>
+            <div class="modal-body">
+                <p>Receive notifications when the river exceeds this level:</p>
+                <div class="input-group" style="margin-bottom:16px;">
+                    <label>Alert Threshold (ft)</label>
+                    <input type="number" id="alertThresholdInput" step="0.1"
+                        style="width:100%;padding:10px;background:#222;border:1px solid #444;color:white;border-radius:4px;font-size:16px;">
+                </div>
+                <p style="font-size:11px;color:#888;">Default Action Stage: <span id="defaultStageVal">--</span> ft</p>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button class="btn" onclick="closeAlertSettings()" style="flex:1;">Cancel</button>
+                <button class="btn btn-primary" onclick="saveAlertSettings()" style="flex:1;">Save Setting</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="disclaimerModal">
         <div class="modal-card">
             <div class="modal-title">
@@ -1513,6 +1564,8 @@
             loggedObs: [],
             lastUSGSUpdate: null,
             lastNWPSUpdate: null,
+            notificationsEnabled: false,
+            lastAlertTime: 0,
         };
 
         // Helper to get formatted endpoints for current location
@@ -1711,6 +1764,7 @@
             updateDisplay();
             renderAll();
             saveToStorage();
+            checkAlerts();
 
             btn.disabled = false;
             btn.textContent = '🔄 Refresh All';
@@ -2051,6 +2105,113 @@
         // ===================
         // DISPLAY UPDATES
         // ===================
+        // ===================
+        // NOTIFICATIONS
+        // ===================
+        function toggleNotifications() {
+            if (!('Notification' in window)) {
+                alert('This browser does not support desktop notifications');
+                return;
+            }
+
+            if (state.notificationsEnabled) {
+                state.notificationsEnabled = false;
+                updateNotifyBtn();
+                return;
+            }
+
+            if (Notification.permission === 'granted') {
+                state.notificationsEnabled = true;
+                updateNotifyBtn();
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        state.notificationsEnabled = true;
+                        updateNotifyBtn();
+                        new Notification('RiverTracker', { body: 'Flood alerts enabled!' });
+                    }
+                });
+            }
+        }
+
+        function updateNotifyBtn() {
+            const btn = document.getElementById('notifyBtn');
+            if (!btn) return;
+
+            const threshold = getAlertThreshold();
+
+            if (state.notificationsEnabled) {
+                btn.textContent = `🔔 On (> ${threshold}ft)`;
+                btn.classList.add('btn-primary');
+                // Custom branding for active state
+                btn.style.background = 'linear-gradient(135deg, var(--color-action), #b0801a)';
+            } else {
+                btn.textContent = '🔔 Alerts Off';
+                btn.classList.remove('btn-primary');
+                btn.style.background = ''; // Reset
+            }
+        }
+
+        // Get saved threshold or default to Action stage
+        function getAlertThreshold() {
+            const saved = localStorage.getItem(`alert_thresh_${state.currentLoc}`);
+            if (saved) return parseFloat(saved);
+            return LOCATIONS[state.currentLoc].stages.action;
+        }
+
+        function openAlertSettings() {
+            const modal = document.getElementById('alertModal');
+            const input = document.getElementById('alertThresholdInput');
+            const defLabel = document.getElementById('defaultStageVal');
+
+            const currentVal = getAlertThreshold();
+            input.value = currentVal;
+
+            const loc = LOCATIONS[state.currentLoc];
+            defLabel.textContent = loc.stages.action;
+
+            modal.classList.add('active');
+        }
+
+        function closeAlertSettings() {
+            document.getElementById('alertModal').classList.remove('active');
+        }
+
+        function saveAlertSettings() {
+            const input = document.getElementById('alertThresholdInput');
+            const val = parseFloat(input.value);
+
+            if (!isNaN(val)) {
+                localStorage.setItem(`alert_thresh_${state.currentLoc}`, val);
+
+                // Update UI
+                if (state.notificationsEnabled) {
+                    updateNotifyBtn();
+                }
+
+                closeAlertSettings();
+            }
+        }
+
+        function checkAlerts() {
+            if (!state.notificationsEnabled || !state.currentLevel) return;
+
+            const loc = LOCATIONS[state.currentLoc];
+            const threshold = getAlertThreshold();
+
+            const now = Date.now();
+            // One hour cooldown
+            if (now - state.lastAlertTime < 3600000) return;
+
+            if (state.currentLevel >= threshold) {
+                new Notification(`Flood Alert: ${loc.name}`, {
+                    body: `Current Level: ${state.currentLevel.toFixed(2)} ft. Exceeded threshold ${threshold} ft!`,
+                    icon: 'icon.svg'
+                });
+                state.lastAlertTime = now;
+            }
+        }
+
         function updateDisplay() {
             try {
                 const level = state.currentLevel;
