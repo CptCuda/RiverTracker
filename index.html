@@ -1439,11 +1439,33 @@
                 <p>4. <strong>Compliance:</strong> Users are responsible for complying with all applicable government
                     regulations and emergency orders.</p>
             </div>
-            <button class="btn-accept" onclick="acceptDisclaimer()">I Understand & Agree</button>
+
+            <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" id="agreeCheckbox" style="width:20px;height:20px;" onchange="toggleAcceptBtn()">
+                <label for="agreeCheckbox" style="color:var(--text-primary);font-size:14px;cursor:pointer;">I have read
+                    and agree to the above terms</label>
+            </div>
+
+            <button class="btn-accept" id="acceptBtn" onclick="acceptDisclaimer()" disabled
+                style="opacity:0.5;cursor:not-allowed;">I Agree & Continue</button>
         </div>
     </div>
 
     <script>
+        function toggleAcceptBtn() {
+            const cb = document.getElementById('agreeCheckbox');
+            const btn = document.getElementById('acceptBtn');
+            if (cb.checked) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
+        }
+
         function acceptDisclaimer() {
             localStorage.setItem('flood_tracker_disclaimer_accepted_v1', 'true');
             document.getElementById('disclaimerModal').classList.remove('active');
